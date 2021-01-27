@@ -9,7 +9,7 @@
                 "/Applications/Arduino.app/Contents/Java/hardware/tools/**",
                 "/Applications/Arduino.app/Contents/Java/hardware/arduino/avr/**",
                 "${workspaceFolder}/**",
-                "/Users/crksf/Documents/Arduino/libraries"
+                "/Users/crksf/Documents/Arduino/libraries/**"
             ],
             "defines": [
                 "USBCON"
