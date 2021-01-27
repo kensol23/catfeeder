@@ -93,9 +93,36 @@ RTC_DS1307 rtc;
 AT24C32 EepromRTC;
 Servo miservo;
 
+int mesesLargos[7] = {1,3,5,7,8,10,12};
+int mesesCortos[4] = {4,6,9,11};
 int segundo,minuto,hora,dia,dd,mes;
 long anio; //variable año
 DateTime HoraFecha;
+
+bool meslargo()
+{
+  bool found = false;
+  for (int i = 0; i < 7; i++)
+  {
+    if (mesesLargos[i]==tiempo[RELOJ_M])
+    {
+      found = true;
+    }
+  }
+  return found;
+}
+bool mescorto()
+{
+  bool found = false;
+  for (int i = 0; i < 4; i++)
+  {
+    if (mesesCortos[i]==tiempo[RELOJ_M])
+    {
+      found = true;
+    }
+  }
+  return found;
+}
 
 void imprError (String e)
 {
@@ -113,15 +140,17 @@ void establecerHora ()
   //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   if (!rtc.isrunning())
   {
+    lcd.clear();
     lcd.setCursor (0, 0);
     lcd.print ("Reloj no esta en hora!");
     Serial.println ("Reloj no esta en hora!");
   } else {
     lcd.clear();
     lcd.setCursor (0, 0);
-    lcd.print ("Reloj Configurado!");
-    Serial.println ("Reloj Configurado!");
+    lcd.print ("Actualizado!");
+    Serial.println ("Actualizado!");
   }
+  delay(2000);
 }
 
 void imprimeFecha ()
@@ -313,18 +342,18 @@ void paginaPrincipal () {
   imprimeFecha();
 }
 
-void paginaReloj () {
-  
+void paginaReloj () 
+{
   lcd.clear ();
   lcd.setCursor (0, 0);
-  lcd.print ("Ajustar Reloj:");
+  lcd.print ("Reloj:");
+
   if (editando)
   {
     bool navegando = true;
 
     paginaAnterior = pagina;
     pagina = 0;
-
     paginasAnterior = paginas;
     paginas = 6;
 
@@ -339,11 +368,12 @@ void paginaReloj () {
       pantallaEdicion();
       teclado.update();
 
-      if (teclado.onPress(BOTON_MENU))
+      if (teclado.onPress(BOTON_MENU)) 
       {
         navegando = false;
         pagina = paginaAnterior;
         paginas = paginasAnterior;
+        establecerHora ();
       }
       if (teclado.onPress(BOTON_ARRIBA))
       {
@@ -362,10 +392,79 @@ void paginaReloj () {
         while (editando_reloj){
           teclado.update();
           
-          if (teclado.onPress(BOTON_ARRIBA))
+          if (teclado.onPress(BOTON_ARRIBA)) // Al presionar el boton arriba.
           {
-            tiempo[pagina]++;
-            
+            tiempo[pagina]++; // Sumamos uno al elemento de la fecha que esta siendo editado.
+
+            switch (pagina)   // Comprobamos que parte de la fecha es
+            {
+              case RELOJ_A: // Si es el Anho no hacer nada; no hay limite para el anho.
+              break;
+
+              case RELOJ_M: // Si es el Mes se comprueba que no sea mayor a 12 si es asi, retornamos a 1
+                if (tiempo[RELOJ_M] > 12){
+                  tiempo[RELOJ_M] = 1;
+                }
+              break;
+
+              case RELOJ_D: // Si es el Dia
+                if (tiempo[RELOJ_M] == 2) // Si es el mes de febrero
+                {
+                  if ( (tiempo[RELOJ_A]%4==0) && ( (tiempo[RELOJ_A]%400==0) || (tiempo[RELOJ_A]%100!=0) ) ) // Si es anho bisiesto
+                  {
+                    if(tiempo[RELOJ_D] > 29) // Al sobrepasar el dia 29
+                    {
+                      tiempo[RELOJ_D] = 1; // Volver al dia 1
+                    }
+                  }
+                  else // Si no es anho bisiesto
+                  {
+                    if(tiempo[RELOJ_D] > 28) // Al sobrepasar el dia 28
+                    {
+                      tiempo[RELOJ_D] = 1; // Volver al dia 1
+                    }
+                  }
+                }
+                else if (meslargo()) // Comprueba si es un mes de 31 dias.
+                {
+                  if(tiempo[RELOJ_D] > 31) // Al sobrepasar el dia 31
+                  {
+                    tiempo[RELOJ_D] = 1; // Volver al dia 1
+                  }
+                }
+                else if (mescorto()) // Comprueba si es un mes de 30 dias.
+                {
+                  if(tiempo[RELOJ_D] > 30) // Al sobrepasar el dia 31
+                  {
+                    tiempo[RELOJ_D] = 1; // Volver al dia 1
+                  }
+                }
+              break;
+
+              case RELOJ_h:
+                if(tiempo[RELOJ_h] > 23) // Al sobrepasar la hora 23
+                {
+                  tiempo[RELOJ_h] = 0; // Volver a la hora 0
+                }
+              break;
+
+              case RELOJ_m:
+                if(tiempo[RELOJ_m] > 59) // Al sobrepasar el minuto 59
+                {
+                  tiempo[RELOJ_m] = 0; // Volver al minuto 0
+                }
+              break;
+
+              case RELOJ_s:
+                if(tiempo[RELOJ_s] > 59) // Al sobrepasar el segundo 59
+                {
+                  tiempo[RELOJ_s] = 0; // Volver al segundo 0
+                }
+              break;
+
+              default:
+              break;
+            }
             lcd.setCursor(7,1);
             lcd.print("    ");
             lcd.setCursor(7,1);
@@ -375,6 +474,79 @@ void paginaReloj () {
           {
             tiempo[pagina]--;
 
+            switch (pagina)   // Comprobamos que parte de la fecha es
+            {
+              case RELOJ_A: // Si es el Anho y llega a Cero re-iniciar en 4000.
+                if(tiempo[RELOJ_A] < 0)
+                {
+                  tiempo[RELOJ_A] = 4000;
+                }
+              break;
+
+              case RELOJ_M: // Si es el Mes se comprueba que no sea mayor a 12 si es asi, retornamos a 1
+                if (tiempo[RELOJ_M] < 1){
+                  tiempo[RELOJ_M] = 12;
+                }
+              break;
+
+              case RELOJ_D: // Si es el Dia
+                if (tiempo[RELOJ_M] == 2) // Si es el mes de febrero
+                {
+                  if ( (tiempo[RELOJ_A]%4==0) && ( (tiempo[RELOJ_A]%400==0) || (tiempo[RELOJ_A]%100!=0) ) ) // Si es anho bisiesto
+                  {
+                    if(tiempo[RELOJ_D] < 1) // Al bajar del dia 1
+                    {
+                      tiempo[RELOJ_D] = 29; // Volver al dia 29
+                    }
+                  }
+                  else // Si no es anho bisiesto
+                  {
+                    if(tiempo[RELOJ_D] < 1) // Al bajar del dia 1
+                    {
+                      tiempo[RELOJ_D] = 28; // Volver al dia 28
+                    }
+                  }
+                }
+                else if (meslargo()) // Comprueba si es un mes de 31 dias.
+                {
+                  if(tiempo[RELOJ_D] < 1) // Al bajar del dia 1
+                  {
+                    tiempo[RELOJ_D] = 31; // Volver al dia 31
+                  }
+                }
+                else if (mescorto()) // Comprueba si es un mes de 30 dias.
+                {
+                  if(tiempo[RELOJ_D] < 1) // Al bajar del dia 1
+                  {
+                    tiempo[RELOJ_D] = 30; // Volver al dia 30
+                  }
+                }
+              break;
+
+              case RELOJ_h:
+                if(tiempo[RELOJ_h] < 0)
+                {
+                  tiempo[RELOJ_h] = 23;
+                }
+              break;
+
+              case RELOJ_m:
+                if(tiempo[RELOJ_m] < 0)
+                {
+                  tiempo[RELOJ_m] = 59;
+                }
+              break;
+
+              case RELOJ_s:
+                if(tiempo[RELOJ_s] < 0)
+                {
+                  tiempo[RELOJ_s] = 59; 
+                }
+              break;
+
+              default:
+              break;
+            }
             lcd.setCursor(7,1);
             lcd.print("    ");
             lcd.setCursor(7,1);
@@ -388,65 +560,67 @@ void paginaReloj () {
           delay(200);
         }
       }
-
-        switch (pagina)
+        if (navegando)
         {
-          case RELOJ_A:
-            lcd.setCursor(2,1);
-            lcd.print("Ano: ");
-            lcd.setCursor(7,1);
-            lcd.print("    ");
-            lcd.setCursor(7,1);
-            lcd.print(tiempo[pagina]);
-          break;
+          switch (pagina)
+          {
+            case RELOJ_A:
+              lcd.setCursor(2,1);
+              lcd.print("Ano: ");
+              lcd.setCursor(7,1);
+              lcd.print("    ");
+              lcd.setCursor(7,1);
+              lcd.print(tiempo[pagina]);
+            break;
 
-          case RELOJ_M:
-            lcd.setCursor(2,1);
-            lcd.print("Mes: ");
-            lcd.setCursor(7,1);
-            lcd.print("    ");
-            lcd.setCursor(7,1);
-            lcd.print(tiempo[pagina]);
-          break;
-          
-          case RELOJ_D:
-            lcd.setCursor(2,1);
-            lcd.print("Dia: ");
-            lcd.setCursor(7,1);
-            lcd.print("    ");
-            lcd.setCursor(7,1);
-            lcd.print(tiempo[pagina]);
-          break;
+            case RELOJ_M:
+              lcd.setCursor(2,1);
+              lcd.print("Mes: ");
+              lcd.setCursor(7,1);
+              lcd.print("    ");
+              lcd.setCursor(7,1);
+              lcd.print(tiempo[pagina]);
+            break;
+            
+            case RELOJ_D:
+              lcd.setCursor(2,1);
+              lcd.print("Dia: ");
+              lcd.setCursor(7,1);
+              lcd.print("    ");
+              lcd.setCursor(7,1);
+              lcd.print(tiempo[pagina]);
+            break;
 
-          case RELOJ_h:
-            lcd.setCursor(2,1);
-            lcd.print("Hor: ");
-            lcd.setCursor(7,1);
-            lcd.print("    ");
-            lcd.setCursor(7,1);
-            lcd.print(tiempo[pagina]);
-          break;
+            case RELOJ_h:
+              lcd.setCursor(2,1);
+              lcd.print("Hor: ");
+              lcd.setCursor(7,1);
+              lcd.print("    ");
+              lcd.setCursor(7,1);
+              lcd.print(tiempo[pagina]);
+            break;
 
-          case RELOJ_m:
-            lcd.setCursor(2,1);
-            lcd.print("Min: ");
-            lcd.setCursor(7,1);
-            lcd.print("   ");
-            lcd.setCursor(7,1);
-            lcd.print(tiempo[pagina]);
-          break;
+            case RELOJ_m:
+              lcd.setCursor(2,1);
+              lcd.print("Min: ");
+              lcd.setCursor(7,1);
+              lcd.print("   ");
+              lcd.setCursor(7,1);
+              lcd.print(tiempo[pagina]);
+            break;
 
-          case RELOJ_s:
-            lcd.setCursor(2,1);
-            lcd.print("Seg: ");
-            lcd.setCursor(7,1);
-            lcd.print("    ");
-            lcd.setCursor(7,1);
-            lcd.print(tiempo[pagina]);
-          break;
+            case RELOJ_s:
+              lcd.setCursor(2,1);
+              lcd.print("Seg: ");
+              lcd.setCursor(7,1);
+              lcd.print("    ");
+              lcd.setCursor(7,1);
+              lcd.print(tiempo[pagina]);
+            break;
 
-          default:
-          break;
+            default:
+            break;
+          }
         }
       delay(200);
     }
