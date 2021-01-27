@@ -13,6 +13,7 @@
 #define PIN_TECLADO A0
 #define PIN_BUZZER A2
 #define PIN_AUX A3
+
 #define POSH1 0
 #define POSM1 1
 #define POSS1 2
@@ -32,23 +33,26 @@
 #define POSRACION 16
 #define POSPORCIONES 17
 
-const int BOTONES_NUMERO = 4;
-const int BOTONES_VALORES[BOTONES_NUMERO] = {0, 343, 526, 638};
+#define GLOBALDELAY 200
+#define DELAYAFTERPROMPT 2000
 
+const int BOTONES_NUMERO = 4; // cantidad de botones en el teclado
+const int BOTONES_VALORES[BOTONES_NUMERO] = {0, 343, 526, 638}; // voltajes correspondietes a cada uno de los botones en su respectivo orden
 
-// ES: Orden de los botones de acuerdo a los valores listados en el arreglo BOTONES_VALORES
-// EN: Button order according to values order in BOTONES_VALORES array
+// Orden de los botones de acuerdo a los valores listados en el arreglo BOTONES_VALORES
 const int BOTON_OK      = 0;
 const int BOTON_MENU    = 1;
 const int BOTON_ARRIBA  = 2;
 const int BOTON_ABAJO   = 3;
 
+// Indices Menu Principal
 const int PAG_PRINCIPAL = 0;
 const int PAG_RELOJ = 1;
 const int PAG_COMIDA = 2;
 const int PAG_CANTIDAD = 3;
 const int PAG_PORCIONES = 4;
 
+// Indices Menu Reloj
 const int RELOJ_A = 0;
 const int RELOJ_M = 1;
 const int RELOJ_D = 2;
@@ -56,13 +60,17 @@ const int RELOJ_h = 3;
 const int RELOJ_m = 4;
 const int RELOJ_s = 5;
 
-unsigned int tiempo[6]  = { 2021, 1, 1, 0, 0, 0 };  // 0 aC1o 1 mes 2 dia  3 hora 4 munito 5 segundo
-unsigned int alarma1[3] = { 0, 0, 0 };  // hora minut segundo alarma 1
-unsigned int alarma2[3] = { 0, 0, 0 };  // hora minut segundo alarma 2
-unsigned int alarma3[3] = { 0, 0, 0 };  // hora minut segundo alarma 3
-unsigned int alarma4[3] = { 0, 0, 0 };  // hora minut segundo alarma 4
-unsigned int alarma5[3] = { 0, 0, 0 };  // hora minut segundo alarma 5
+// Tiempo Global
+unsigned int tiempo[6]  = { 2021, 1, 1, 0, 0, 0 };  // 0 anho 1 mes 2 dia  3 hora 4 munito 5 segundo
 
+// Datos para las alarmas de comidas
+unsigned int alarma1[3] = { 0, 0, 0 };  // hora, minut, segundo: alarma 1
+unsigned int alarma2[3] = { 0, 0, 0 };  // hora, minut, segundo: alarma 2
+unsigned int alarma3[3] = { 0, 0, 0 };  // hora, minut, segundo: alarma 3
+unsigned int alarma4[3] = { 0, 0, 0 };  // hora, minut, segundo: alarma 4
+unsigned int alarma5[3] = { 0, 0, 0 };  // hora, minut, segundo: alarma 5
+
+// Alarmas de comida
 AlarmID_t Alarm1id;
 AlarmID_t Alarm2id;
 AlarmID_t Alarm3id;
@@ -70,28 +78,30 @@ AlarmID_t Alarm4id;
 AlarmID_t Alarm5id;
 AlarmID_t Alarm6id;
 
-const char DIAS[7][12] = { "DOM", "LUN", "MAR", "MIE", "JUE", "VIE", "SAB" };
+// Iconos personalizados para representar las comidas
+uint8_t pendiente[8]  = {0xe, 0x15, 0x15, 0x13, 0xe, 0x0, 0x17, 0x1f}; // Icono comida pendiente
+uint8_t dispensada[8] = {0x1, 0xa, 0x4, 0x0, 0x4, 0xa, 0x15, 0x1f};    // Icono comdia dispensada
+
+const char DIAS[7][12] = { "DOM", "LUN", "MAR", "MIE", "JUE", "VIE", "SAB" }; // Dias de la semana desplejados por el reloj de la pagina principal
 
 // La medida de la racion es equivalente a la cantidad de milisegundos
 // durante los cuales es necesario dejar la tapa de la tolva abierta para 
 // dispensar aproximadamente 1/4 de taza de alimento
-unsigned int racion = 300;
+unsigned int racion           = 300;
+unsigned int porciones        = 2; // cantidad de porciones por servida
+unsigned int dispensadosXdia  = 3; // cantidad de servidas dispensadas por dia
 
-unsigned int porciones = 2;
-
-int dispensadosXdia = 3;
-
-int pagina = 0;
+int pagina  = 0;
 int paginas = 5;
 int paginasAnterior = 5;
-int paginaAnterior = 0;
+int paginaAnterior  = 0;
 bool editando, editandoItem = false;
 
 AnalogMultiButton teclado(PIN_TECLADO, BOTONES_NUMERO, BOTONES_VALORES);
-LiquidCrystal_I2C lcd (0x27,20,4);  // set the LCD address to 0x27 for a 16 chars and 2 line display
-RTC_DS1307 rtc;
-AT24C32 EepromRTC;
-Servo miservo;
+LiquidCrystal_I2C lcd (0x27,20,4);  // Configura la direccion del lcd a 0x27 con una pantalla de 16x2
+RTC_DS1307        rtc;
+AT24C32           EepromRTC;
+Servo             miservo;
 
 int mesesLargos[7] = {1,3,5,7,8,10,12};
 int mesesCortos[4] = {4,6,9,11};
@@ -150,7 +160,7 @@ void establecerHora ()
     lcd.print ("Actualizado!");
     Serial.println ("Actualizado!");
   }
-  delay(2000);
+  delay(DELAYAFTERPROMPT);
 }
 
 void imprimeFecha ()
@@ -368,7 +378,7 @@ void paginaReloj ()
       pantallaEdicion();
       teclado.update();
 
-      if (teclado.onPress(BOTON_MENU)) 
+      if (teclado.onPress(BOTON_MENU)) // Al presionar MENU en modo de navegacion
       {
         navegando = false;
         pagina = paginaAnterior;
@@ -557,7 +567,7 @@ void paginaReloj ()
             editando_reloj = false;
           }
 
-          delay(200);
+          delay(GLOBALDELAY);
         }
       }
         if (navegando)
@@ -622,7 +632,7 @@ void paginaReloj ()
             break;
           }
         }
-      delay(200);
+      delay(GLOBALDELAY);
     }
   }
 }
@@ -678,12 +688,16 @@ void pantallaEdicion ()
   lcd.setCursor(0,1);
   lcd.print("> ");
 }
+
 //
 void setup() {
   Serial.begin(9600);
   Wire.begin();
   lcd.init();
   lcd.backlight();
+
+  lcd.createChar(0,dispensada);
+  lcd.createChar(1,pendiente);
 
   //probarEEPROM();
 
@@ -731,7 +745,7 @@ void loop() {
         {
           editando = false;
         }
-        delay(200);
+        delay(GLOBALDELAY);
       }
     } else { // 
 
@@ -744,5 +758,5 @@ void loop() {
 
   muestraPagina();
 
-  delay(200);
+  delay(GLOBALDELAY);
 }
