@@ -32,6 +32,11 @@
 #define POSDISPENSADOS 15
 #define POSRACION 16
 #define POSPORCIONES 17
+#define POSDISPENSADO1 18
+#define POSDISPENSADO2 19
+#define POSDISPENSADO3 20
+#define POSDISPENSADO4 21
+#define POSDISPENSADO5 22
 
 #define GLOBALDELAY 200
 #define DELAYAFTERPROMPT 2000
@@ -40,10 +45,10 @@ const int BOTONES_NUMERO = 4; // cantidad de botones en el teclado
 const int BOTONES_VALORES[BOTONES_NUMERO] = {0, 343, 526, 638}; // voltajes correspondietes a cada uno de los botones en su respectivo orden
 
 // Orden de los botones de acuerdo a los valores listados en el arreglo BOTONES_VALORES
-const int BOTON_OK      = 0;
-const int BOTON_MENU    = 1;
-const int BOTON_ARRIBA  = 2;
-const int BOTON_ABAJO   = 3;
+const int OK      = 0;
+const int MENU    = 1;
+const int ARRIBA  = 2;
+const int ABAJO   = 3;
 
 // Indices Menu Principal
 const int PAG_PRINCIPAL = 0;
@@ -60,15 +65,36 @@ const int RELOJ_h = 3;
 const int RELOJ_m = 4;
 const int RELOJ_s = 5;
 
-// Tiempo Global
-unsigned int tiempo[6]  = { 2021, 1, 1, 0, 0, 0 };  // 0 anho 1 mes 2 dia  3 hora 4 munito 5 segundo
+// Indices Menu Alarmas
+const int ALARMA_1 = 0;
+const int ALARMA_2 = 1;
+const int ALARMA_3 = 2;
+const int ALARMA_4 = 3;
+const int ALARMA_5 = 4;
 
-// Datos para las alarmas de comidas
-unsigned int alarma1[3] = { 0, 0, 0 };  // hora, minut, segundo: alarma 1
-unsigned int alarma2[3] = { 0, 0, 0 };  // hora, minut, segundo: alarma 2
-unsigned int alarma3[3] = { 0, 0, 0 };  // hora, minut, segundo: alarma 3
-unsigned int alarma4[3] = { 0, 0, 0 };  // hora, minut, segundo: alarma 4
-unsigned int alarma5[3] = { 0, 0, 0 };  // hora, minut, segundo: alarma 5
+const int HORA = 0;
+const int MINUTO = 1;
+const int SEGUNDO = 2;
+
+// Tiempo Global
+int tiempo[6]  = { 2021, 1, 1, 0, 0, 0 };  // 0 anho 1 mes 2 dia  3 hora 4 munito 5 segundo
+
+// La medida de la racion es equivalente a la cantidad de milisegundos
+// durante los cuales es necesario dejar la tapa de la tolva abierta para 
+// dispensar aproximadamente 1/4 de taza de alimento
+int racion           = 300;
+int porciones        = 2; // cantidad de porciones por servida
+int dispensadosXdia  = 3; // cantidad de servidas dispensadas por dia
+
+int pagina  = 0;
+int paginas = 5;
+int paginasAnterior = 5;
+int paginaAnterior  = 0;
+bool editando, editandoItem = false;
+
+String pantallasAlarmas[5] = {"Comida 1", "Comida 2", "Comida 3", "Comida 4", "Comida 5"};
+int alarmas[5][3] = {{ 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }};
+
 
 // Alarmas de comida
 AlarmID_t Alarm1id;
@@ -84,24 +110,15 @@ uint8_t dispensada[8] = {0x1, 0xa, 0x4, 0x0, 0x4, 0xa, 0x15, 0x1f};    // Icono 
 
 const char DIAS[7][12] = { "DOM", "LUN", "MAR", "MIE", "JUE", "VIE", "SAB" }; // Dias de la semana desplejados por el reloj de la pagina principal
 
-// La medida de la racion es equivalente a la cantidad de milisegundos
-// durante los cuales es necesario dejar la tapa de la tolva abierta para 
-// dispensar aproximadamente 1/4 de taza de alimento
-unsigned int racion           = 300;
-unsigned int porciones        = 2; // cantidad de porciones por servida
-unsigned int dispensadosXdia  = 3; // cantidad de servidas dispensadas por dia
-
-int pagina  = 0;
-int paginas = 5;
-int paginasAnterior = 5;
-int paginaAnterior  = 0;
-bool editando, editandoItem = false;
-
 AnalogMultiButton teclado(PIN_TECLADO, BOTONES_NUMERO, BOTONES_VALORES);
 LiquidCrystal_I2C lcd (0x27,20,4);  // Configura la direccion del lcd a 0x27 con una pantalla de 16x2
 RTC_DS1307        rtc;
 AT24C32           EepromRTC;
 Servo             miservo;
+
+String h = "";
+String m = "";
+String s = "";
 
 int mesesLargos[7] = {1,3,5,7,8,10,12};
 int mesesCortos[4] = {4,6,9,11};
@@ -165,16 +182,6 @@ void establecerHora ()
 
 void imprimeFecha ()
 {
-  HoraFecha = rtc.now();
-  
-  segundo = HoraFecha.second();
-  minuto  = HoraFecha.minute();
-  hora    = HoraFecha.hour();
-  dia     = HoraFecha.dayOfTheWeek();
-  dd      = HoraFecha.day();
-  mes     = HoraFecha.month();
-  anio    = HoraFecha.year();
-
   lcd.clear();
   lcd.print(DIAS[dia]);
   lcd.print(" ");
@@ -223,32 +230,35 @@ void probarEEPROM ()
   delay(5000);
 }
 
-void crearComidas ()
+void guardaAlarmas ()
 {
-  int h,m,s = 0;
-
-  EepromRTC.writeInt(POSH1,h);
-  EepromRTC.writeInt(POSM1,m);
-  EepromRTC.writeInt(POSS1,s);
+  EepromRTC.writeInt(POSH1, alarmas[0][0]);
+  EepromRTC.writeInt(POSM1, alarmas[0][1]);
+  EepromRTC.writeInt(POSS1, alarmas[0][2]);
   
-  EepromRTC.writeInt(POSH2,h);
-  EepromRTC.writeInt(POSM2,m);
-  EepromRTC.writeInt(POSS2,s);
+  EepromRTC.writeInt(POSH2, alarmas[1][0]);
+  EepromRTC.writeInt(POSM2, alarmas[1][1]);
+  EepromRTC.writeInt(POSS2, alarmas[1][2]);
 
-  EepromRTC.writeInt(POSH3,h);
-  EepromRTC.writeInt(POSM3,m);
-  EepromRTC.writeInt(POSS3,s);
+  EepromRTC.writeInt(POSH3, alarmas[2][0]);
+  EepromRTC.writeInt(POSM3, alarmas[2][1]);
+  EepromRTC.writeInt(POSS3, alarmas[2][2]);
 
-  EepromRTC.writeInt(POSH4,h);
-  EepromRTC.writeInt(POSM4,m);
-  EepromRTC.writeInt(POSS4,s);
+  EepromRTC.writeInt(POSH4, alarmas[3][0]);
+  EepromRTC.writeInt(POSM4, alarmas[3][1]);
+  EepromRTC.writeInt(POSS4, alarmas[3][2]);
 
-  EepromRTC.writeInt(POSH5,h);
-  EepromRTC.writeInt(POSM5,m);
-  EepromRTC.writeInt(POSS5,s);
+  EepromRTC.writeInt(POSH5, alarmas[4][0]);
+  EepromRTC.writeInt(POSM5, alarmas[4][1]);
+  EepromRTC.writeInt(POSS5, alarmas[4][2]);
 
   EepromRTC.writeInt(POSDISPENSADOS,dispensadosXdia);
   EepromRTC.writeInt(POSRACION,racion);
+
+  lcd.clear();
+  Serial.println("Datos Actualizados!");
+  lcd.print("Datos Actualizados!");
+  delay(DELAYAFTERPROMPT);
 }
 
 void dispensar ()
@@ -262,7 +272,7 @@ void dispensar ()
   digitalWrite (PIN_AUX, LOW);
 }
 
-void imprAlarm (unsigned int a[3])
+void imprAlarm (int a[3])
 {
   Serial.print (a[0], DEC);
   Serial.print (":");
@@ -271,7 +281,7 @@ void imprAlarm (unsigned int a[3])
   Serial.println (a[2], DEC);
 }
 
-void activaAlarma (AlarmID_t alarmaId, unsigned int alarma[3])
+void activaAlarma (AlarmID_t alarmaId, int alarma[3])
 {
   if (alarma[0] != 0 || alarma[1] != 0)
   {
@@ -279,43 +289,56 @@ void activaAlarma (AlarmID_t alarmaId, unsigned int alarma[3])
   }
 }
 
-void iniciaComidas ()
+void cargaDatos ()
 {
-  alarma1[0] = EepromRTC.read(POSH1);
-  alarma1[1] = EepromRTC.read(POSM1);
-  alarma1[2] = EepromRTC.read(POSS1);
-  imprAlarm(alarma1);
+  alarmas[0][0] = EepromRTC.read(POSH1);
+  alarmas[0][1] = EepromRTC.read(POSM1);
+  alarmas[0][2] = EepromRTC.read(POSS1);
+  imprAlarm(alarmas[0]);
 
-  alarma2[0] = EepromRTC.read(POSH2);
-  alarma2[1] = EepromRTC.read(POSM2);
-  alarma2[2] = EepromRTC.read(POSS2);
-  imprAlarm(alarma2);
+  alarmas[1][0] = EepromRTC.read(POSH2);
+  alarmas[1][1] = EepromRTC.read(POSM2);
+  alarmas[1][2] = EepromRTC.read(POSS2);
+  imprAlarm(alarmas[1]);
 
-  alarma3[0] = EepromRTC.read(POSH3);
-  alarma3[1] = EepromRTC.read(POSM3);
-  alarma3[2] = EepromRTC.read(POSS3);
-  imprAlarm(alarma3);
+  alarmas[2][0] = EepromRTC.read(POSH3);
+  alarmas[2][1] = EepromRTC.read(POSM3);
+  alarmas[2][2] = EepromRTC.read(POSS3);
+  imprAlarm(alarmas[2]);
 
-  alarma4[0] = EepromRTC.read(POSH4);
-  alarma4[1] = EepromRTC.read(POSM4);
-  alarma4[2] = EepromRTC.read(POSS4);
-  imprAlarm(alarma4);
+  alarmas[3][0] = EepromRTC.read(POSH4);
+  alarmas[3][1] = EepromRTC.read(POSM4);
+  alarmas[3][2] = EepromRTC.read(POSS4);
+  imprAlarm(alarmas[3]);
 
-  alarma5[0] = EepromRTC.read(POSH5);
-  alarma5[1] = EepromRTC.read(POSM5);
-  alarma5[2] = EepromRTC.read(POSS5);
-  imprAlarm(alarma4);
+  alarmas[4][0] = EepromRTC.read(POSH5);
+  alarmas[4][1] = EepromRTC.read(POSM5);
+  alarmas[4][2] = EepromRTC.read(POSS5);
+  imprAlarm(alarmas[4]);
 
   dispensadosXdia = EepromRTC.read(POSDISPENSADOS);
   racion          = EepromRTC.read(POSRACION);
   porciones       = EepromRTC.read(POSPORCIONES);
 
-  activaAlarma (Alarm1id, alarma1);
-  activaAlarma (Alarm2id, alarma2);
-  activaAlarma (Alarm3id, alarma3);
-  activaAlarma (Alarm4id, alarma4);
-  activaAlarma (Alarm5id, alarma5);
+  lcd.clear();
+  Serial.println("Datos Cargados!");
+  lcd.print("Datos Cargados!");
+  delay(DELAYAFTERPROMPT);
+}
 
+void iniciaComidas ()
+{
+  cargaDatos ();
+  activaAlarma (Alarm1id, alarmas[0]);
+  activaAlarma (Alarm2id, alarmas[1]);
+  activaAlarma (Alarm3id, alarmas[2]);
+  activaAlarma (Alarm4id, alarmas[3]);
+  activaAlarma (Alarm5id, alarmas[4]);
+
+  lcd.clear();
+  Serial.println("Comidas Iniciadas!");
+  lcd.print("Comidas Iniciadas!");
+  delay(DELAYAFTERPROMPT);
 }
 
 void muestraPagina(){
@@ -378,22 +401,22 @@ void paginaReloj ()
       pantallaEdicion();
       teclado.update();
 
-      if (teclado.onPress(BOTON_MENU)) // Al presionar MENU en modo de navegacion
+      if (teclado.onPress(MENU)) // Al presionar MENU en modo de navegacion
       {
         navegando = false;
         pagina = paginaAnterior;
         paginas = paginasAnterior;
         establecerHora ();
       }
-      if (teclado.onPress(BOTON_ARRIBA))
+      if (teclado.onPress(ARRIBA))
       {
         subir();
       }
-      if (teclado.onPress(BOTON_ABAJO))
+      if (teclado.onPress(ABAJO))
       {
         bajar();
       }
-      if (teclado.onPress(BOTON_OK))
+      if (teclado.onPress(OK))
       {
         bool editando_reloj = true;
         lcd.setCursor(6,1);
@@ -402,7 +425,7 @@ void paginaReloj ()
         while (editando_reloj){
           teclado.update();
           
-          if (teclado.onPress(BOTON_ARRIBA)) // Al presionar el boton arriba.
+          if (teclado.onPress(ARRIBA)) // Al presionar el boton arriba.
           {
             tiempo[pagina]++; // Sumamos uno al elemento de la fecha que esta siendo editado.
 
@@ -480,7 +503,7 @@ void paginaReloj ()
             lcd.setCursor(7,1);
             lcd.print(tiempo[pagina]);
           }
-          if (teclado.onPress(BOTON_ABAJO))
+          if (teclado.onPress(ABAJO))
           {
             tiempo[pagina]--;
 
@@ -562,7 +585,7 @@ void paginaReloj ()
             lcd.setCursor(7,1);
             lcd.print(tiempo[pagina]);
           }
-          if (teclado.onPress(BOTON_MENU))
+          if (teclado.onPress(MENU))
           {
             editando_reloj = false;
           }
@@ -570,68 +593,66 @@ void paginaReloj ()
           delay(GLOBALDELAY);
         }
       }
-        if (navegando)
+
+      if (navegando)
+      {
+        switch (pagina)
         {
-          switch (pagina)
-          {
-            case RELOJ_A:
-              lcd.setCursor(2,1);
-              lcd.print("Ano: ");
-              lcd.setCursor(7,1);
-              lcd.print("    ");
-              lcd.setCursor(7,1);
-              lcd.print(tiempo[pagina]);
-            break;
+          case RELOJ_A:
+            lcd.setCursor(2,1);
+            lcd.print("Ano: ");
+            lcd.setCursor(7,1);
+            lcd.print("    ");
+            lcd.setCursor(7,1);
+            lcd.print(tiempo[pagina]);
+          break;
 
-            case RELOJ_M:
-              lcd.setCursor(2,1);
-              lcd.print("Mes: ");
-              lcd.setCursor(7,1);
-              lcd.print("    ");
-              lcd.setCursor(7,1);
-              lcd.print(tiempo[pagina]);
-            break;
-            
-            case RELOJ_D:
-              lcd.setCursor(2,1);
-              lcd.print("Dia: ");
-              lcd.setCursor(7,1);
-              lcd.print("    ");
-              lcd.setCursor(7,1);
-              lcd.print(tiempo[pagina]);
-            break;
+          case RELOJ_M:
+            lcd.setCursor(2,1);
+            lcd.print("Mes: ");
+            lcd.setCursor(7,1);
+            lcd.print("    ");
+            lcd.setCursor(7,1);
+            lcd.print(tiempo[pagina]);
+          break;
+          
+          case RELOJ_D:
+            lcd.setCursor(2,1);
+            lcd.print("Dia: ");
+            lcd.setCursor(7,1);
+            lcd.print("    ");
+            lcd.setCursor(7,1);
+            lcd.print(tiempo[pagina]);
+          break;
 
-            case RELOJ_h:
-              lcd.setCursor(2,1);
-              lcd.print("Hor: ");
-              lcd.setCursor(7,1);
-              lcd.print("    ");
-              lcd.setCursor(7,1);
-              lcd.print(tiempo[pagina]);
-            break;
+          case RELOJ_h:
+            lcd.setCursor(2,1);
+            lcd.print("Hor: ");
+            lcd.setCursor(7,1);
+            lcd.print("    ");
+            lcd.setCursor(7,1);
+            lcd.print(tiempo[pagina]);
+          break;
 
-            case RELOJ_m:
-              lcd.setCursor(2,1);
-              lcd.print("Min: ");
-              lcd.setCursor(7,1);
-              lcd.print("   ");
-              lcd.setCursor(7,1);
-              lcd.print(tiempo[pagina]);
-            break;
+          case RELOJ_m:
+            lcd.setCursor(2,1);
+            lcd.print("Min: ");
+            lcd.setCursor(7,1);
+            lcd.print("   ");
+            lcd.setCursor(7,1);
+            lcd.print(tiempo[pagina]);
+          break;
 
-            case RELOJ_s:
-              lcd.setCursor(2,1);
-              lcd.print("Seg: ");
-              lcd.setCursor(7,1);
-              lcd.print("    ");
-              lcd.setCursor(7,1);
-              lcd.print(tiempo[pagina]);
-            break;
-
-            default:
-            break;
-          }
+          case RELOJ_s:
+            lcd.setCursor(2,1);
+            lcd.print("Seg: ");
+            lcd.setCursor(7,1);
+            lcd.print("    ");
+            lcd.setCursor(7,1);
+            lcd.print(tiempo[pagina]);
+          break;
         }
+      }
       delay(GLOBALDELAY);
     }
   }
@@ -640,11 +661,200 @@ void paginaReloj ()
 void paginaTiemposComidas () {
   lcd.clear ();
   lcd.setCursor (0, 0);
-  lcd.print ("Comidas...");
+  lcd.print ("Comidas:");
   if (editando)
   {
-    pantallaEdicion();
+    bool navegando = true;
+    paginaAnterior = pagina;
+    pagina = 0;
+    paginasAnterior = paginas;
+    paginas = 5;
+
+    while (navegando)
+    {
+      teclado.update();
+      // Evaluar el input de los botones
+      if (teclado.onPress(MENU)) // Al presionar MENU en modo de navegacion
+      {
+        navegando = false;
+        pagina = paginaAnterior;
+        paginas = paginasAnterior;
+        iniciaComidas ();
+      }
+      if (teclado.onPress(ARRIBA))
+      {
+        subir();
+      }
+      if (teclado.onPress(ABAJO))
+      {
+        bajar();
+      }
+      if (teclado.onPress(OK))
+      {
+        bool editando_alarma = true;
+        const int ELEMENTOS = 3;
+        int elemento = 0;
+
+        while (editando_alarma)
+        {
+          teclado.update();
+          
+          if (teclado.onPress(MENU)) // Al presionar MENU en modo de navegacion
+          {
+            editando_alarma = false;
+            guardaAlarmas();
+          }
+          if (teclado.onPress(ARRIBA))
+          {
+            elemento++;
+            if (elemento > ELEMENTOS)
+            {
+              elemento = 0;
+            }
+          }
+          if (teclado.onPress(ABAJO))
+          {
+            elemento--;
+            if (elemento < 0)
+            {
+              elemento = ELEMENTOS;
+            }
+          }
+          if (teclado.onPress(OK))
+          {
+            bool editando_elemento_alarma = true;
+            imprimeAlarma(pagina,true);
+            while (editando_elemento_alarma)
+            {
+              teclado.update();
+              if (teclado.onPress(MENU))
+              {
+                editando_elemento_alarma = false;
+              }
+              if (teclado.onPress(OK))
+              {
+                editando_elemento_alarma = false;
+              }
+              if (teclado.onPress(ARRIBA))
+              {
+                alarmas[pagina][elemento]++;
+                switch (elemento)
+                {
+                  case HORA:
+                    if (alarmas[pagina][elemento] > 23)
+                    {
+                      alarmas[pagina][elemento] = 0;
+                    }
+                    break;
+                  default:
+                    if (alarmas[pagina][elemento] > 59)
+                    {
+                      alarmas[pagina][elemento] = 0;
+                    }
+                    break;
+                }
+              }
+              if (teclado.onPress(ABAJO))
+              {
+                alarmas[pagina][elemento]--;
+                switch (elemento)
+                {
+                  case HORA:
+                  Serial.println(alarmas[pagina][elemento]);
+                    if (alarmas[pagina][elemento] < 0)
+                    {
+                      alarmas[pagina][elemento] = 23;
+                    }
+                    break;
+                  default:
+                    if (alarmas[pagina][elemento] < 0)
+                    {
+                      alarmas[pagina][elemento] = 59;
+                    }
+                    break;
+                }
+              }
+              imprimeAlarma(pagina,true);
+              delay(GLOBALDELAY);
+            }
+          }
+
+          lcd.setCursor(0,1);
+          if (elemento == HORA)
+          {
+            lcd.print("> [OK]:"+m+":"+s);
+          }
+          if (elemento == MINUTO)
+          {
+            lcd.print("> "+h+":[OK]:"+s);
+          }
+          if (elemento == SEGUNDO)
+          {
+            lcd.print("> "+h+":"+m+":[OK]");
+          }
+          delay(GLOBALDELAY);
+        }
+      }
+      // Imprimir la pagina seleccionada
+      if (navegando)
+      {
+        switch (pagina)
+        {
+          case ALARMA_1:
+            imprimeAlarma(ALARMA_1,false);
+            break;
+          case ALARMA_2:
+            imprimeAlarma(ALARMA_2,false);
+            break;
+          case ALARMA_3:
+            imprimeAlarma(ALARMA_3,false);
+            break;
+          case ALARMA_4:
+            imprimeAlarma(ALARMA_4,false);
+            break;
+          case ALARMA_5:
+            imprimeAlarma(ALARMA_5,false);
+            break;
+        }
+      }
+      delay(GLOBALDELAY);
+    } 
   }
+}
+
+void imprimeAlarma (int a, bool edit)
+{
+
+  h = String(alarmas[a][0]);
+  m = String(alarmas[a][1]);
+  s = String(alarmas[a][2]);
+
+  if(h.length() == 1)
+  {
+    h = "0" + h;
+  }
+  if(m.length() == 1)
+  {
+    m = "0" + m;
+  }
+  if(s.length() == 1)
+  {
+    s = "0" + s;
+  }
+
+  //lcd.setCursor(1,1);
+  //lcd.write(byte(1));
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print(pantallasAlarmas[a]);
+  lcd.setCursor(0,1);
+  if (edit)
+  {
+    lcd.print("> "+h+":"+m+":"+s);
+  } else {
+    lcd.print(h+":"+m+":"+s);
+  }
+  
 }
 
 void paginaCantidad () {
@@ -711,6 +921,8 @@ void setup() {
   DateTime now = rtc.now();
   setTime (now.hour (), now.minute (), now.second (), now.month (), now.day (), now.year ()); // set time to Saturday 8:29:00am Jan 1 2011
 
+  // guardaAlarmas();
+  iniciaComidas();
   // Print a message to the LCD.
   
   lcd.setCursor(0,0);
@@ -720,19 +932,26 @@ void setup() {
 }
 
 void loop() {
-  
-  DateTime now = rtc.now();
   teclado.update();
+  HoraFecha = rtc.now();
 
-  if (teclado.onPress(BOTON_ARRIBA))
+  segundo = HoraFecha.second();
+  minuto  = HoraFecha.minute();
+  hora    = HoraFecha.hour();
+  dia     = HoraFecha.dayOfTheWeek();
+  dd      = HoraFecha.day();
+  mes     = HoraFecha.month();
+  anio    = HoraFecha.year();
+
+  if (teclado.onPress(ARRIBA))
   {
     subir();
   }
-  if (teclado.onPress(BOTON_ABAJO))
+  if (teclado.onPress(ABAJO))
   {
     bajar();
   }
-  if (teclado.onPress(BOTON_OK))
+  if (teclado.onPress(OK))
   {
     if (pagina != 0){
       editando = true;
@@ -741,7 +960,7 @@ void loop() {
 
         muestraPagina();
 
-        if (teclado.onPress(BOTON_MENU))
+        if (teclado.onPress(MENU))
         {
           editando = false;
         }
@@ -751,7 +970,7 @@ void loop() {
 
     }
   }
-  if (teclado.onPress(BOTON_MENU))
+  if (teclado.onPress(MENU))
   {
     Serial.println("MENU!!");
   }
