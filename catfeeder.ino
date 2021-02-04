@@ -126,6 +126,15 @@ int segundo,minuto,hora,dia,dd,mes;
 long anio; //variable año
 DateTime HoraFecha;
 
+String timeDigit(int d)
+{
+  if(String(d).length() > 1)
+  {
+    return String(d);
+  }
+  return "0" + String(d);
+}
+
 bool meslargo()
 {
   bool found = false;
@@ -182,16 +191,21 @@ void establecerHora ()
 
 void imprimeFecha ()
 {
-  lcd.clear();
   lcd.print(DIAS[dia]);
-  lcd.print(" ");
-  lcd.print(dd);
-  lcd.print(" ");
-  lcd.print(hora);
+  lcd.print("-");
+  lcd.print(timeDigit(dd));
+  lcd.print("  ");
+  lcd.print(timeDigit(hora));
   lcd.print(":");
-  lcd.print(minuto);
+  lcd.print(timeDigit(minuto));
   lcd.print(":");
-  lcd.print(segundo);
+  lcd.print(timeDigit(segundo));
+}
+
+//TODO
+void imprimeGraficoComidas ()
+{
+  lcd.setCursor(1,0);
 }
 
 void probarEEPROM ()
@@ -631,7 +645,7 @@ void paginaReloj ()
             lcd.setCursor(7,1);
             lcd.print("    ");
             lcd.setCursor(7,1);
-            lcd.print(tiempo[pagina]);
+            lcd.print(timeDigit(tiempo[pagina]));
           break;
 
           case RELOJ_m:
@@ -640,7 +654,7 @@ void paginaReloj ()
             lcd.setCursor(7,1);
             lcd.print("   ");
             lcd.setCursor(7,1);
-            lcd.print(tiempo[pagina]);
+            lcd.print(timeDigit(tiempo[pagina]));
           break;
 
           case RELOJ_s:
@@ -649,7 +663,7 @@ void paginaReloj ()
             lcd.setCursor(7,1);
             lcd.print("    ");
             lcd.setCursor(7,1);
-            lcd.print(tiempo[pagina]);
+            lcd.print(timeDigit(tiempo[pagina]));
           break;
         }
       }
