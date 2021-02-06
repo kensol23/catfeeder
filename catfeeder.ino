@@ -5,7 +5,7 @@
 #include <Wire.h>
 #include <AnalogMultiButton.h>
 #include <TimeLib.h>
-#include <TimeAlarms.h>
+//#include <TimeAlarms.h>
 #include <RTClib.h>
 #include <AT24CX.h>
 
@@ -38,11 +38,13 @@
 #define POSDISPENSADO4 21
 #define POSDISPENSADO5 22
 
-#define GLOBALDELAY 200
+#define GLOBALDELAY 100
 #define DELAYAFTERPROMPT 2000
 
 const int BOTONES_NUMERO = 4; // cantidad de botones en el teclado
 const int BOTONES_VALORES[BOTONES_NUMERO] = {0, 343, 526, 638}; // voltajes correspondietes a cada uno de los botones en su respectivo orden
+
+const int POS_COMIDAS_DISPENSADAS[5] = {POSDISPENSADO1, POSDISPENSADO2, POSDISPENSADO3, POSDISPENSADO4, POSDISPENSADO5};
 
 // Orden de los botones de acuerdo a los valores listados en el arreglo BOTONES_VALORES
 const int OK      = 0;
@@ -80,7 +82,7 @@ const int SEGUNDO = 2;
 int tiempo[6]  = { 2021, 1, 1, 0, 0, 0 };  // 0 anho 1 mes 2 dia  3 hora 4 munito 5 segundo
 
 // La medida de la racion es equivalente a la cantidad de milisegundos
-// durante los cuales es necesario dejar la tapa de la tolva abierta para 
+// durante los cuales es necesario dejar la tapa de la tolva abierta para
 // dispensar aproximadamente 1/4 de taza de alimento
 int racion           = 300;
 int porciones        = 2; // cantidad de porciones por servida
@@ -94,18 +96,20 @@ bool editando, editandoItem = false;
 
 String pantallasAlarmas[5] = {"Comida 1", "Comida 2", "Comida 3", "Comida 4", "Comida 5"};
 int alarmas[5][3] = {{ 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }};
+int comidasServidas[5] = {0, 0, 0, 0, 0};
 
+boolean imprimirGrafico = true;
 
 // Alarmas de comida
-AlarmID_t Alarm1id;
-AlarmID_t Alarm2id;
-AlarmID_t Alarm3id;
-AlarmID_t Alarm4id;
-AlarmID_t Alarm5id;
-AlarmID_t Alarm6id;
+//AlarmID_t Alarm1id;
+//AlarmID_t Alarm2id;
+//AlarmID_t Alarm3id;
+//AlarmID_t Alarm4id;
+//AlarmID_t Alarm5id;
+//AlarmID_t Alarm6id;
 
 // Iconos personalizados para representar las comidas
-uint8_t pendiente[8]  = {0xe, 0x15, 0x15, 0x13, 0xe, 0x0, 0x17, 0x1f}; // Icono comida pendiente
+uint8_t pendiente[8]  = {0xe, 0x15, 0x15, 0x13, 0xe, 0x0, 0x11, 0x1f}; // Icono comida pendiente
 uint8_t dispensada[8] = {0x1, 0xa, 0x4, 0x0, 0x4, 0xa, 0x15, 0x1f};    // Icono comdia dispensada
 
 const char DIAS[7][12] = { "DOM", "LUN", "MAR", "MIE", "JUE", "VIE", "SAB" }; // Dias de la semana desplejados por el reloj de la pagina principal
@@ -135,6 +139,18 @@ String timeDigit(int d)
   return "0" + String(d);
 }
 
+void beep ()
+{
+
+  for (int i = 0; i < 100; i++)
+    {
+      digitalWrite (PIN_BUZZER, LOW);
+      delayMicroseconds (200);
+      digitalWrite (PIN_BUZZER, HIGH);
+      delayMicroseconds (200);
+    }
+
+}
 bool meslargo()
 {
   bool found = false;
@@ -170,27 +186,20 @@ void imprError (String e)
 
 void establecerHora ()
 {
-  rtc.begin(); //Inicializamos el RTC
+  rtc.begin(); //Inicializar el RTC
   Serial.println("Estableciendo Hora y fecha...");
   rtc.adjust(DateTime(tiempo[0],tiempo[1],tiempo[2],tiempo[3],tiempo[4],tiempo[5]));
-  //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   if (!rtc.isrunning())
   {
-    lcd.clear();
-    lcd.setCursor (0, 0);
-    lcd.print ("Reloj no esta en hora!");
     Serial.println ("Reloj no esta en hora!");
   } else {
-    lcd.clear();
-    lcd.setCursor (0, 0);
-    lcd.print ("Actualizado!");
     Serial.println ("Actualizado!");
   }
-  delay(DELAYAFTERPROMPT);
 }
 
 void imprimeFecha ()
 {
+  lcd.setCursor(0,0);
   lcd.print(DIAS[dia]);
   lcd.print("-");
   lcd.print(timeDigit(dd));
@@ -202,46 +211,23 @@ void imprimeFecha ()
   lcd.print(timeDigit(segundo));
 }
 
-//TODO
 void imprimeGraficoComidas ()
 {
-  lcd.setCursor(1,0);
-}
-
-void probarEEPROM ()
-{
-  byte variable_byte=235;
-  int variable_int=3000;
-  long variable_long=48300011;
-  float variable_float=3.14;
-  char cadena[30] = "Naylamp Mechatronics";
-  
-  Serial.println("Guardando datos en la EEPROM...");
-  
-  EepromRTC.write(1,variable_byte); // posiscion 1:ocupa 1 byte de tamaño
-  EepromRTC.writeInt(2,variable_int); // posiscion 2:ocupa 2 bytes de tamaño 
-  EepromRTC.writeLong(4,variable_long); // posiscion 4: ocupa 4 bytes de tamaño 
-  EepromRTC.writeFloat(8,variable_float); // posiscion 8:ocupa 4 bytes de tamaño 
-  EepromRTC.writeChars(12, cadena, 30);// posiscion 16 y  20 bytes de tamaño 
-
-  
-  Serial.println("Leyendo datos guardados...");
-
-  byte a = EepromRTC.read(1);
-  int b = EepromRTC.readInt(2);
-  long c = EepromRTC.readLong(4);
-  float d = EepromRTC.readFloat(8);
-  char cadena2[30];
-  EepromRTC.readChars(12,cadena2,30);
-
-  Serial.print("Dato byte: ");Serial.println(a);
-  Serial.print("Dato int: "); Serial.println(b);
-  Serial.print("Dato long: "); Serial.println(c);
-  Serial.print("Dato float: "); Serial.println(d);
-  Serial.print("Dato Cadena : "); Serial.println(cadena2);
-  Serial.println();
-
-  delay(5000);
+  for(int x=0; x<16; x++)
+  {
+    lcd.setCursor(x,1);
+    for(int i=0; i<5; i++)
+    {
+      if(alarmas[i][0] != 0 || alarmas[i][1] != 0)
+      {
+        int pos = (int)((alarmas[i][0] * 16) / 24);
+        if(x == pos)
+        {
+          lcd.write(byte(comidasServidas[i]));
+        } 
+      } 
+    }
+  }
 }
 
 void guardaAlarmas ()
@@ -249,7 +235,7 @@ void guardaAlarmas ()
   EepromRTC.writeInt(POSH1, alarmas[0][0]);
   EepromRTC.writeInt(POSM1, alarmas[0][1]);
   EepromRTC.writeInt(POSS1, alarmas[0][2]);
-  
+
   EepromRTC.writeInt(POSH2, alarmas[1][0]);
   EepromRTC.writeInt(POSM2, alarmas[1][1]);
   EepromRTC.writeInt(POSS2, alarmas[1][2]);
@@ -269,21 +255,49 @@ void guardaAlarmas ()
   EepromRTC.writeInt(POSDISPENSADOS,dispensadosXdia);
   EepromRTC.writeInt(POSRACION,racion);
 
-  lcd.clear();
   Serial.println("Datos Actualizados!");
-  lcd.print("Datos Actualizados!");
-  delay(DELAYAFTERPROMPT);
 }
 
 void dispensar ()
 {
+  beep();
+  beep();
+  beep();
   digitalWrite (PIN_AUX, HIGH);
 
   miservo.write(180);
   delay(racion*porciones);
   miservo.write(0);
-  
+
   digitalWrite (PIN_AUX, LOW);
+  beep();
+  beep();
+  beep();
+
+  for(int i = 0; i<5; i++)
+  {
+    if(alarmas[i][0] == hora && alarmas[i][1] == minuto && alarmas[i][2] == segundo)
+    {
+      comidasServidas[i] = 1;
+      EepromRTC.writeInt(POS_COMIDAS_DISPENSADAS[i],1);
+    }
+  }
+}
+
+void restablecerComidasDispensadas ()
+{
+  for(int i = 0; i<5; i++)
+  {
+    EepromRTC.writeInt(POS_COMIDAS_DISPENSADAS[i], 0);
+  }
+}
+
+void cargarComidasDispensadas ()
+{
+  for(int i=0; i<5; i++)
+  {
+    comidasServidas[i] = EepromRTC.read(POS_COMIDAS_DISPENSADAS[i]);
+  }
 }
 
 void imprAlarm (int a[3])
@@ -295,6 +309,7 @@ void imprAlarm (int a[3])
   Serial.println (a[2], DEC);
 }
 
+/*
 void activaAlarma (AlarmID_t alarmaId, int alarma[3])
 {
   if (alarma[0] != 0 || alarma[1] != 0)
@@ -302,6 +317,7 @@ void activaAlarma (AlarmID_t alarmaId, int alarma[3])
     alarmaId = Alarm.alarmRepeat (alarma[0], alarma[1], alarma[2], dispensar);
   }
 }
+*/
 
 void cargaDatos ()
 {
@@ -334,40 +350,39 @@ void cargaDatos ()
   racion          = EepromRTC.read(POSRACION);
   porciones       = EepromRTC.read(POSPORCIONES);
 
-  lcd.clear();
+  cargarComidasDispensadas();
+
   Serial.println("Datos Cargados!");
-  lcd.print("Datos Cargados!");
   delay(DELAYAFTERPROMPT);
 }
 
 void iniciaComidas ()
 {
   cargaDatos ();
+  /*
   activaAlarma (Alarm1id, alarmas[0]);
   activaAlarma (Alarm2id, alarmas[1]);
   activaAlarma (Alarm3id, alarmas[2]);
   activaAlarma (Alarm4id, alarmas[3]);
   activaAlarma (Alarm5id, alarmas[4]);
+  */
 
-  lcd.clear();
   Serial.println("Comidas Iniciadas!");
-  lcd.print("Comidas Iniciadas!");
-  delay(DELAYAFTERPROMPT);
 }
 
 void muestraPagina(){
   switch (pagina)
   {
     case PAG_PRINCIPAL:
-      paginaPrincipal();
+      imprimePaginaPrincipal();
     break;
 
     case PAG_RELOJ:
-      paginaReloj();
+      imprimePaginaReloj();
     break;
-    
+
     case PAG_COMIDA:
-      paginaTiemposComidas();
+      imprimePaginaTiemposComidas();
     break;
 
     case PAG_CANTIDAD:
@@ -383,13 +398,17 @@ void muestraPagina(){
   }
 }
 
-void paginaPrincipal () {
-  lcd.clear();
-  lcd.setCursor(0,0);
+void imprimePaginaPrincipal () {
+  //lcd.clear();
   imprimeFecha();
+  if(imprimirGrafico)
+  {
+    imprimeGraficoComidas();
+    imprimirGrafico = false;
+  }
 }
 
-void paginaReloj () 
+void imprimePaginaReloj ()
 {
   lcd.clear ();
   lcd.setCursor (0, 0);
@@ -438,7 +457,7 @@ void paginaReloj ()
 
         while (editando_reloj){
           teclado.update();
-          
+
           if (teclado.onPress(ARRIBA)) // Al presionar el boton arriba.
           {
             tiempo[pagina]++; // Sumamos uno al elemento de la fecha que esta siendo editado.
@@ -587,7 +606,7 @@ void paginaReloj ()
               case RELOJ_s:
                 if(tiempo[RELOJ_s] < 0)
                 {
-                  tiempo[RELOJ_s] = 59; 
+                  tiempo[RELOJ_s] = 59;
                 }
               break;
 
@@ -629,7 +648,7 @@ void paginaReloj ()
             lcd.setCursor(7,1);
             lcd.print(tiempo[pagina]);
           break;
-          
+
           case RELOJ_D:
             lcd.setCursor(2,1);
             lcd.print("Dia: ");
@@ -672,7 +691,7 @@ void paginaReloj ()
   }
 }
 
-void paginaTiemposComidas () {
+void imprimePaginaTiemposComidas () {
   lcd.clear ();
   lcd.setCursor (0, 0);
   lcd.print ("Comidas:");
@@ -712,7 +731,7 @@ void paginaTiemposComidas () {
         while (editando_alarma)
         {
           teclado.update();
-          
+
           if (teclado.onPress(MENU)) // Al presionar MENU en modo de navegacion
           {
             editando_alarma = false;
@@ -832,7 +851,7 @@ void paginaTiemposComidas () {
         }
       }
       delay(GLOBALDELAY);
-    } 
+    }
   }
 }
 
@@ -868,7 +887,7 @@ void imprimeAlarma (int a, bool edit)
   } else {
     lcd.print(h+":"+m+":"+s);
   }
-  
+
 }
 
 void paginaCantidad () {
@@ -893,7 +912,7 @@ void paginaPorciones () {
 
 void subir (){
   pagina++;
-  if(pagina >= paginas) 
+  if(pagina >= paginas)
   {
     pagina = 0;
   }
@@ -901,10 +920,10 @@ void subir (){
 
 void bajar (){
   pagina--;
-  if(pagina == -1) 
+  if(pagina == -1)
   {
     pagina = paginas;
-  } 
+  }
 }
 
 void pantallaEdicion ()
@@ -920,10 +939,11 @@ void setup() {
   lcd.init();
   lcd.backlight();
 
-  lcd.createChar(0,dispensada);
-  lcd.createChar(1,pendiente);
+  lcd.createChar(0,pendiente);
+  lcd.createChar(1,dispensada);
 
-  //probarEEPROM();
+  //REMOVER!!
+  //restablecerComidasDispensadas();
 
   miservo.attach (PIN_SERVO);   // Initialize Servo
   pinMode (PIN_BUZZER, OUTPUT); // Initialize buzzer
@@ -933,16 +953,10 @@ void setup() {
   rtc.begin();
 
   DateTime now = rtc.now();
-  setTime (now.hour (), now.minute (), now.second (), now.month (), now.day (), now.year ()); // set time to Saturday 8:29:00am Jan 1 2011
+  setTime (now.hour (), now.minute (), now.second (), now.month (), now.day (), now.year ()); 
 
-  // guardaAlarmas();
   iniciaComidas();
-  // Print a message to the LCD.
-  
-  lcd.setCursor(0,0);
-  lcd.print("Hola, mundo!");
-  lcd.setCursor(0,1);
-  lcd.print("Ken Arduino!");
+  imprimeGraficoComidas();
 }
 
 void loop() {
@@ -957,12 +971,35 @@ void loop() {
   mes     = HoraFecha.month();
   anio    = HoraFecha.year();
 
+  // Validar el cambio de dia para restablecer el registro de comidas dispensadas.
+  if(hora==0 && minuto==0 && segundo==0)
+  {
+    restablecerComidasDispensadas();
+  }
+
+  // Validar la hora actual contra las alarmas para dispensar si es necesario.
+  for(int i=0; i<5; i++)
+  {
+    if(hora == alarmas[i][0] && minuto == alarmas[i][1] && segundo == alarmas[i][2])
+    {
+      dispensar();
+    }
+  }
+
   if (teclado.onPress(ARRIBA))
   {
+    if(pagina == paginas-1 && !imprimirGrafico)
+    {
+      imprimirGrafico = true;
+    }
     subir();
   }
   if (teclado.onPress(ABAJO))
   {
+    if(pagina == 1 && !imprimirGrafico)
+    {
+      imprimirGrafico = true;
+    }
     bajar();
   }
   if (teclado.onPress(OK))
@@ -980,13 +1017,19 @@ void loop() {
         }
         delay(GLOBALDELAY);
       }
-    } else { // 
+    } else { //
 
     }
   }
   if (teclado.onPress(MENU))
   {
-    Serial.println("MENU!!");
+    if(!imprimirGrafico)
+    {
+      imprimirGrafico = true;
+    }
+    if(pagina !=0){
+      pagina = 0;
+    }
   }
 
   muestraPagina();
