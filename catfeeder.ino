@@ -37,6 +37,7 @@
 #define POSDISPENSADO4 21
 #define POSDISPENSADO5 22
 #define POSFECHA 23
+#define POSMANUAL 24
 
 #define GLOBALDELAY 100
 #define DELAYAFTERPROMPT 2000
@@ -79,10 +80,15 @@ const int SEGUNDO = 2;
 const char DIAS[7][12] = { "DOM", "LUN", "MAR", "MIE", "JUE", "VIE", "SAB" }; // Dias de la semana desplejados por el reloj de la pagina principal
 const int POS_COMIDAS_DISPENSADAS[5] = {POSDISPENSADO1, POSDISPENSADO2, POSDISPENSADO3, POSDISPENSADO4, POSDISPENSADO5};
 
-const uint8_t pendiente[8]  = {0xe, 0x15, 0x15, 0x13, 0xe, 0x0, 0x11, 0x1f};  // Icono comida pendiente
-const uint8_t dispensada[8] = {0x1, 0xa, 0x4, 0x0, 0x4, 0xa, 0x15, 0x1f};     // Icono comdia dispensada
-const uint8_t saltada[8]    = {0x11, 0xa, 0x4, 0xa, 0x11, 0x0, 0x11, 0x1f};   // Icono comida saltada
-const uint8_t manual[8]     = {0x4, 0x15, 0xe, 0x4, 0x0, 0xa, 0x15, 0x1f};    // Icono comida manual
+uint8_t pendiente[8]  = {0xe, 0x15, 0x15, 0x13, 0xe, 0x0, 0x11, 0x1f};  // Icono comida pendiente
+uint8_t dispensada[8] = {0x1, 0xa, 0x4, 0x0, 0x4, 0xa, 0x15, 0x1f};     // Icono comdia dispensada
+uint8_t saltada[8]    = {0x11, 0xa, 0x4, 0xa, 0x11, 0x0, 0x11, 0x1f};   // Icono comida saltada
+uint8_t manual[8]     = {0x4, 0x15, 0xe, 0x4, 0x0, 0xa, 0x15, 0x1f};    // Icono comida manual
+uint8_t reloj1[8]     = {0x1f, 0x11, 0xa, 0x4, 0xa, 0x1f, 0x1f, 0x0};   // Icono reloj de arena
+uint8_t reloj2[8]     = {0x0, 0x0, 0xe, 0x15, 0x15, 0x13, 0xe, 0x0};      // Icono reloj de agujas
+uint8_t calendario[8]  = {0x0, 0x15, 0x1f, 0x15, 0x1b, 0x15, 0x1f, 0x0};  // Icono calendario
+uint8_t iconoComida[8] = {0x0, 0x0, 0x0, 0x0, 0x0, 0xa, 0x15, 0x1f};     // Icono plato de comida
+uint8_t iconoCantidad[8] = {0x0, 0x0, 0x1f, 0x4, 0xe, 0x19, 0x15, 0x1f};  // Icono cantidad de comida
 
 int racion           = 300; // La medida de la racion es equivalente a la cantidad de milisegundos durante los cuales es necesario dejar la tapa de la tolva abierta para durante los cuales es necesario dejar la tapa de la tolva abierta para
 int porciones        = 2;   // cantidad de porciones por servida
@@ -95,10 +101,11 @@ int paginaAnterior  = 0;
 bool editando, editandoItem = false;
 
 int tiempo[6]               = { 2021, 1, 1, 0, 0, 0 };  // 0 anho 1 mes 2 dia  3 hora 4 minuto 5 segundo
-int alarmas[5][3]           = {{ 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }};
+int alarmas[5][3]           = { { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 } };
 int comidasServidas[5]      = {0, 0, 0, 0, 0};
 int ultimoDiaDispensado     = 0;
 int comidasSaltadas         = 0;
+int comidasManuales         = 0;
 String pantallasAlarmas[5]  = {"Comida 1", "Comida 2", "Comida 3", "Comida 4", "Comida 5"};
 boolean imprimirGrafico = true;
 
@@ -227,7 +234,7 @@ void imprimeGraficoComidas ()
   calculaComidasSaltadas();
 
   lcd.setCursor(0,1);
-  lcd.print("        ");
+  lcd.print("                ");
   lcd.setCursor(0,1);
   lcd.print("[");
   for(int i=0; i<5; i++)
@@ -251,6 +258,11 @@ void imprimeGraficoComidas ()
     }
   }
   lcd.print("]");
+
+  lcd.setCursor(13,1);
+  lcd.write(byte(3));
+  lcd.print(" ");
+  lcd.print(comidasManuales);
 }
 
 void guardaAlarmas ()
@@ -311,6 +323,19 @@ void dispensar ()
   }
 }
 
+void dispensarManual () {
+  miservo.write(180);
+  delay(racion*porciones);
+  miservo.write(0);
+  beep();
+  beep();
+  beep();
+
+  comidasManuales++;
+
+  EepromRTC.writeInt(POSMANUAL, comidasManuales);
+}
+
 void restablecerComidasDispensadas ()
 {
   //Serial.print("BINGO!!!");
@@ -318,7 +343,9 @@ void restablecerComidasDispensadas ()
   {
     EepromRTC.writeInt(POS_COMIDAS_DISPENSADAS[i], 0);
   }
+  comidasManuales = 0;
   EepromRTC.writeInt(POSFECHA, HoraFecha.day());
+  EepromRTC.writeInt(POSMANUAL, comidasManuales);
 }
 
 void cargarComidasDispensadas ()
@@ -328,6 +355,7 @@ void cargarComidasDispensadas ()
     comidasServidas[i] = EepromRTC.read(POS_COMIDAS_DISPENSADAS[i]);
   }
   ultimoDiaDispensado = EepromRTC.read(POSFECHA);
+  comidasManuales = EepromRTC.read(POSMANUAL);
 }
 
 void imprAlarm (int a[3])
@@ -422,9 +450,13 @@ void imprimePaginaPrincipal () {
 
 void imprimePaginaReloj ()
 {
-  lcd.clear ();
+  //lcd.clear ();
   lcd.setCursor (0, 0);
-  lcd.print ("Reloj:");
+  lcd.write(byte(5));
+  lcd.print (" FECHA Y HORA ");
+  lcd.write(byte(4));
+  lcd.setCursor (0, 1);
+  lcd.print ("                ");
 
   if (editando)
   {
@@ -704,9 +736,13 @@ void imprimePaginaReloj ()
 }
 
 void imprimePaginaTiemposComidas () {
-  lcd.clear ();
+  //lcd.clear ();
   lcd.setCursor (0, 0);
-  lcd.print ("Comidas:");
+  lcd.write(byte(6));
+  lcd.print ("   HORARIOS   ");
+  lcd.write(byte(5));
+  lcd.setCursor (0, 1);
+  lcd.print ("                ");
   if (editando)
   {
     bool navegando = true;
@@ -901,9 +937,13 @@ void imprimeAlarma (int a, bool edit)
 }
 
 void paginaCantidad () {
-  lcd.clear ();
+  //lcd.clear ();
   lcd.setCursor (0, 0);
-  lcd.print ("Cantidad...");
+  lcd.write(byte(7));
+  lcd.print ("   CANTIDAD   ");
+  lcd.write(byte(7));
+  lcd.setCursor (0, 1);
+  lcd.print ("                ");
   if (editando)
   {
     pantallaEdicion();
@@ -911,9 +951,13 @@ void paginaCantidad () {
 }
 
 void paginaPorciones () {
-  lcd.clear ();
+  //lcd.clear ();
   lcd.setCursor (0, 0);
-  lcd.print ("Porciones...");
+  lcd.write(byte(6));
+  lcd.print ("  PORCIONES   ");
+  lcd.write(byte(6));
+  lcd.setCursor (0, 1);
+  lcd.print ("                ");
   if (editando)
   {
     pantallaEdicion();
@@ -962,6 +1006,10 @@ void setup () {
   lcd.createChar(1,dispensada);
   lcd.createChar(2,saltada);
   lcd.createChar(3,manual);
+  lcd.createChar(4,reloj2);
+  lcd.createChar(5,calendario);
+  lcd.createChar(6,iconoComida);
+  lcd.createChar(7,iconoCantidad);
 
   miservo.attach (PIN_SERVO);   // Initialize Servo
   pinMode (PIN_BUZZER, OUTPUT); // Initialize buzzer
@@ -1001,7 +1049,8 @@ void loop () {
   // Validar el cambio de dia para restablecer el registro de comidas dispensadas.
   if(hora==0 && minuto==0 && segundo==0)
   {
-    restablecerComidasDispensadas();
+    restablecerComidasDispensadas ();
+    imprimeGraficoComidas ();
   }
 
   // Validar la hora actual contra las alarmas para dispensar si es necesario.
@@ -1056,6 +1105,8 @@ void loop () {
     }
     if(pagina !=0){
       pagina = 0;
+    } else {
+      dispensarManual ();
     }
   }
 
