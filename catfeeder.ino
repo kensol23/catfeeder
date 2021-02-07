@@ -5,7 +5,6 @@
 #include <Wire.h>
 #include <AnalogMultiButton.h>
 #include <TimeLib.h>
-//#include <TimeAlarms.h>
 #include <RTClib.h>
 #include <AT24CX.h>
 
@@ -37,6 +36,7 @@
 #define POSDISPENSADO3 20
 #define POSDISPENSADO4 21
 #define POSDISPENSADO5 22
+#define POSFECHA 23
 
 #define GLOBALDELAY 100
 #define DELAYAFTERPROMPT 2000
@@ -97,25 +97,22 @@ bool editando, editandoItem = false;
 String pantallasAlarmas[5] = {"Comida 1", "Comida 2", "Comida 3", "Comida 4", "Comida 5"};
 int alarmas[5][3] = {{ 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }};
 int comidasServidas[5] = {0, 0, 0, 0, 0};
+int ultimoDiaDispensado = 0;
+int comidasSaltadas = 0;
 
 boolean imprimirGrafico = true;
-
-// Alarmas de comida
-//AlarmID_t Alarm1id;
-//AlarmID_t Alarm2id;
-//AlarmID_t Alarm3id;
-//AlarmID_t Alarm4id;
-//AlarmID_t Alarm5id;
-//AlarmID_t Alarm6id;
 
 // Iconos personalizados para representar las comidas
 uint8_t pendiente[8]  = {0xe, 0x15, 0x15, 0x13, 0xe, 0x0, 0x11, 0x1f}; // Icono comida pendiente
 uint8_t dispensada[8] = {0x1, 0xa, 0x4, 0x0, 0x4, 0xa, 0x15, 0x1f};    // Icono comdia dispensada
+uint8_t saltada[8] = {0x11, 0xa, 0x4, 0xa, 0x11, 0x0, 0x11, 0x1f}; // Icono comida saltada
+uint8_t manual[8] = {0x4, 0x15, 0xe, 0x4, 0x0, 0xa, 0x15, 0x1f}; // Icono comida manual
+
 
 const char DIAS[7][12] = { "DOM", "LUN", "MAR", "MIE", "JUE", "VIE", "SAB" }; // Dias de la semana desplejados por el reloj de la pagina principal
 
 AnalogMultiButton teclado(PIN_TECLADO, BOTONES_NUMERO, BOTONES_VALORES);
-LiquidCrystal_I2C lcd (0x27,20,4);  // Configura la direccion del lcd a 0x27 con una pantalla de 16x2
+LiquidCrystal_I2C lcd (0x27,16,2);  // Configura la direccion del lcd a 0x27 con una pantalla de 16x2
 RTC_DS1307        rtc;
 AT24C32           EepromRTC;
 Servo             miservo;
@@ -210,9 +207,11 @@ void imprimeFecha ()
   lcd.print(":");
   lcd.print(timeDigit(segundo));
 }
-
+/*
 void imprimeGraficoComidas ()
 {
+  lcd.setCursor(0,1);
+  lcd.print("                ");
   for(int x=0; x<16; x++)
   {
     lcd.setCursor(x,1);
@@ -228,6 +227,37 @@ void imprimeGraficoComidas ()
       } 
     }
   }
+}*/
+
+void imprimeGraficoComidas ()
+{
+  calculaComidasSaltadas();
+
+  lcd.setCursor(0,1);
+  lcd.print("        ");
+  lcd.setCursor(0,1);
+  lcd.print("[");
+  for(int i=0; i<5; i++)
+  {
+    lcd.setCursor(i+1,1);
+    if(alarmas[i][0] != 0 || alarmas[i][1] != 0)
+    {
+      if(comidasServidas[i] != 0)
+      {
+        lcd.write(byte(1));
+      } else {
+        if((alarmas[i][0] == hora && alarmas[i][1] > minuto) || alarmas[i][0] > hora)
+        {
+          lcd.write(byte(0));
+        } else {
+          lcd.write(byte(2));
+        }
+      }
+    } else {
+      lcd.print("_");
+    }
+  }
+  lcd.print("]");
 }
 
 void guardaAlarmas ()
@@ -280,16 +310,22 @@ void dispensar ()
     {
       comidasServidas[i] = 1;
       EepromRTC.writeInt(POS_COMIDAS_DISPENSADAS[i],1);
+      EepromRTC.writeInt(POSFECHA, HoraFecha.day());
     }
+  }
+  if(pagina == 0){
+    imprimeGraficoComidas();
   }
 }
 
 void restablecerComidasDispensadas ()
 {
+  //Serial.print("BINGO!!!");
   for(int i = 0; i<5; i++)
   {
     EepromRTC.writeInt(POS_COMIDAS_DISPENSADAS[i], 0);
   }
+  EepromRTC.writeInt(POSFECHA, HoraFecha.day());
 }
 
 void cargarComidasDispensadas ()
@@ -298,6 +334,7 @@ void cargarComidasDispensadas ()
   {
     comidasServidas[i] = EepromRTC.read(POS_COMIDAS_DISPENSADAS[i]);
   }
+  ultimoDiaDispensado = EepromRTC.read(POSFECHA);
 }
 
 void imprAlarm (int a[3])
@@ -308,16 +345,6 @@ void imprAlarm (int a[3])
   Serial.print (":");
   Serial.println (a[2], DEC);
 }
-
-/*
-void activaAlarma (AlarmID_t alarmaId, int alarma[3])
-{
-  if (alarma[0] != 0 || alarma[1] != 0)
-  {
-    alarmaId = Alarm.alarmRepeat (alarma[0], alarma[1], alarma[2], dispensar);
-  }
-}
-*/
 
 void cargaDatos ()
 {
@@ -359,14 +386,6 @@ void cargaDatos ()
 void iniciaComidas ()
 {
   cargaDatos ();
-  /*
-  activaAlarma (Alarm1id, alarmas[0]);
-  activaAlarma (Alarm2id, alarmas[1]);
-  activaAlarma (Alarm3id, alarmas[2]);
-  activaAlarma (Alarm4id, alarmas[3]);
-  activaAlarma (Alarm5id, alarmas[4]);
-  */
-
   Serial.println("Comidas Iniciadas!");
 }
 
@@ -875,8 +894,6 @@ void imprimeAlarma (int a, bool edit)
     s = "0" + s;
   }
 
-  //lcd.setCursor(1,1);
-  //lcd.write(byte(1));
   lcd.clear();
   lcd.setCursor(0,0);
   lcd.print(pantallasAlarmas[a]);
@@ -932,6 +949,16 @@ void pantallaEdicion ()
   lcd.print("> ");
 }
 
+void calculaComidasSaltadas () {
+  for(int i=0; i<5; i++)
+  {
+    if((alarmas[i][0] != 0 || alarmas[i][1] != 0) && comidasServidas[i] == 0)
+    {
+      comidasSaltadas++;
+    }
+  }
+}
+
 //
 void setup() {
   Serial.begin(9600);
@@ -941,9 +968,8 @@ void setup() {
 
   lcd.createChar(0,pendiente);
   lcd.createChar(1,dispensada);
-
-  //REMOVER!!
-  //restablecerComidasDispensadas();
+  lcd.createChar(2,saltada);
+  lcd.createChar(3,manual);
 
   miservo.attach (PIN_SERVO);   // Initialize Servo
   pinMode (PIN_BUZZER, OUTPUT); // Initialize buzzer
@@ -953,7 +979,16 @@ void setup() {
   rtc.begin();
 
   DateTime now = rtc.now();
-  setTime (now.hour (), now.minute (), now.second (), now.month (), now.day (), now.year ()); 
+  setTime (now.hour (), now.minute (), now.second (), now.month (), now.day (), now.year ());
+
+  cargarComidasDispensadas();
+  
+  if(ultimoDiaDispensado != now.day())
+  {
+    restablecerComidasDispensadas();
+  } else {
+    calculaComidasSaltadas();
+  }
 
   iniciaComidas();
   imprimeGraficoComidas();
