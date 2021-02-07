@@ -44,8 +44,6 @@
 const int BOTONES_NUMERO = 4; // cantidad de botones en el teclado
 const int BOTONES_VALORES[BOTONES_NUMERO] = {0, 343, 526, 638}; // voltajes correspondietes a cada uno de los botones en su respectivo orden
 
-const int POS_COMIDAS_DISPENSADAS[5] = {POSDISPENSADO1, POSDISPENSADO2, POSDISPENSADO3, POSDISPENSADO4, POSDISPENSADO5};
-
 // Orden de los botones de acuerdo a los valores listados en el arreglo BOTONES_VALORES
 const int OK      = 0;
 const int MENU    = 1;
@@ -78,15 +76,17 @@ const int HORA = 0;
 const int MINUTO = 1;
 const int SEGUNDO = 2;
 
-// Tiempo Global
-int tiempo[6]  = { 2021, 1, 1, 0, 0, 0 };  // 0 anho 1 mes 2 dia  3 hora 4 munito 5 segundo
+const char DIAS[7][12] = { "DOM", "LUN", "MAR", "MIE", "JUE", "VIE", "SAB" }; // Dias de la semana desplejados por el reloj de la pagina principal
+const int POS_COMIDAS_DISPENSADAS[5] = {POSDISPENSADO1, POSDISPENSADO2, POSDISPENSADO3, POSDISPENSADO4, POSDISPENSADO5};
 
-// La medida de la racion es equivalente a la cantidad de milisegundos
-// durante los cuales es necesario dejar la tapa de la tolva abierta para
-// dispensar aproximadamente 1/4 de taza de alimento
-int racion           = 300;
-int porciones        = 2; // cantidad de porciones por servida
-int dispensadosXdia  = 3; // cantidad de servidas dispensadas por dia
+const uint8_t pendiente[8]  = {0xe, 0x15, 0x15, 0x13, 0xe, 0x0, 0x11, 0x1f};  // Icono comida pendiente
+const uint8_t dispensada[8] = {0x1, 0xa, 0x4, 0x0, 0x4, 0xa, 0x15, 0x1f};     // Icono comdia dispensada
+const uint8_t saltada[8]    = {0x11, 0xa, 0x4, 0xa, 0x11, 0x0, 0x11, 0x1f};   // Icono comida saltada
+const uint8_t manual[8]     = {0x4, 0x15, 0xe, 0x4, 0x0, 0xa, 0x15, 0x1f};    // Icono comida manual
+
+int racion           = 300; // La medida de la racion es equivalente a la cantidad de milisegundos durante los cuales es necesario dejar la tapa de la tolva abierta para durante los cuales es necesario dejar la tapa de la tolva abierta para
+int porciones        = 2;   // cantidad de porciones por servida
+int dispensadosXdia  = 3;   // cantidad de servidas dispensadas por dia
 
 int pagina  = 0;
 int paginas = 5;
@@ -94,22 +94,13 @@ int paginasAnterior = 5;
 int paginaAnterior  = 0;
 bool editando, editandoItem = false;
 
-String pantallasAlarmas[5] = {"Comida 1", "Comida 2", "Comida 3", "Comida 4", "Comida 5"};
-int alarmas[5][3] = {{ 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }};
-int comidasServidas[5] = {0, 0, 0, 0, 0};
-int ultimoDiaDispensado = 0;
-int comidasSaltadas = 0;
-
+int tiempo[6]               = { 2021, 1, 1, 0, 0, 0 };  // 0 anho 1 mes 2 dia  3 hora 4 minuto 5 segundo
+int alarmas[5][3]           = {{ 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }};
+int comidasServidas[5]      = {0, 0, 0, 0, 0};
+int ultimoDiaDispensado     = 0;
+int comidasSaltadas         = 0;
+String pantallasAlarmas[5]  = {"Comida 1", "Comida 2", "Comida 3", "Comida 4", "Comida 5"};
 boolean imprimirGrafico = true;
-
-// Iconos personalizados para representar las comidas
-uint8_t pendiente[8]  = {0xe, 0x15, 0x15, 0x13, 0xe, 0x0, 0x11, 0x1f}; // Icono comida pendiente
-uint8_t dispensada[8] = {0x1, 0xa, 0x4, 0x0, 0x4, 0xa, 0x15, 0x1f};    // Icono comdia dispensada
-uint8_t saltada[8] = {0x11, 0xa, 0x4, 0xa, 0x11, 0x0, 0x11, 0x1f}; // Icono comida saltada
-uint8_t manual[8] = {0x4, 0x15, 0xe, 0x4, 0x0, 0xa, 0x15, 0x1f}; // Icono comida manual
-
-
-const char DIAS[7][12] = { "DOM", "LUN", "MAR", "MIE", "JUE", "VIE", "SAB" }; // Dias de la semana desplejados por el reloj de la pagina principal
 
 AnalogMultiButton teclado(PIN_TECLADO, BOTONES_NUMERO, BOTONES_VALORES);
 LiquidCrystal_I2C lcd (0x27,16,2);  // Configura la direccion del lcd a 0x27 con una pantalla de 16x2
@@ -121,13 +112,13 @@ String h = "";
 String m = "";
 String s = "";
 
-int mesesLargos[7] = {1,3,5,7,8,10,12};
-int mesesCortos[4] = {4,6,9,11};
-int segundo,minuto,hora,dia,dd,mes;
-long anio; //variable año
+int mesesLargos[7] = {1, 3, 5, 7, 8, 10, 12};
+int mesesCortos[4] = {4, 6, 9, 11};
+int segundo, minuto, hora, dia, dd, mes;
+long anio; 
 DateTime HoraFecha;
 
-String timeDigit(int d)
+String timeDigit (int d)
 {
   if(String(d).length() > 1)
   {
@@ -148,7 +139,8 @@ void beep ()
     }
 
 }
-bool meslargo()
+
+bool meslargo ()
 {
   bool found = false;
   for (int i = 0; i < 7; i++)
@@ -160,7 +152,8 @@ bool meslargo()
   }
   return found;
 }
-bool mescorto()
+
+bool mescorto ()
 {
   bool found = false;
   for (int i = 0; i < 4; i++)
@@ -207,8 +200,8 @@ void imprimeFecha ()
   lcd.print(":");
   lcd.print(timeDigit(segundo));
 }
-/*
-void imprimeGraficoComidas ()
+
+void imprimeGraficoComidasAlt ()
 {
   lcd.setCursor(0,1);
   lcd.print("                ");
@@ -227,7 +220,7 @@ void imprimeGraficoComidas ()
       } 
     }
   }
-}*/
+}
 
 void imprimeGraficoComidas ()
 {
@@ -389,7 +382,7 @@ void iniciaComidas ()
   Serial.println("Comidas Iniciadas!");
 }
 
-void muestraPagina(){
+void muestraPagina (){
   switch (pagina)
   {
     case PAG_PRINCIPAL:
@@ -958,9 +951,8 @@ void calculaComidasSaltadas () {
     }
   }
 }
-
 //
-void setup() {
+void setup () {
   Serial.begin(9600);
   Wire.begin();
   lcd.init();
@@ -994,7 +986,7 @@ void setup() {
   imprimeGraficoComidas();
 }
 
-void loop() {
+void loop () {
   teclado.update();
   HoraFecha = rtc.now();
 
