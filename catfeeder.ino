@@ -29,7 +29,7 @@
 #define POSM5 13
 #define POSS5 14
 #define POSDISPENSADOS 15
-#define POSRACION 16
+#define POSRACION 26
 #define POSPORCIONES 17
 #define POSDISPENSADO1 18
 #define POSDISPENSADO2 19
@@ -41,6 +41,9 @@
 
 #define GLOBALDELAY 100
 #define DELAYAFTERPROMPT 2000
+
+const int LIMITE_RACION = 2560;
+const int COEFIC_RACION = 10;
 
 const int BOTONES_NUMERO = 4; // cantidad de botones en el teclado
 const int BOTONES_VALORES[BOTONES_NUMERO] = {0, 343, 526, 638}; // voltajes correspondietes a cada uno de los botones en su respectivo orden
@@ -87,10 +90,10 @@ uint8_t manual[8]     = {0x4, 0x15, 0xe, 0x4, 0x0, 0xa, 0x15, 0x1f};    // Icono
 uint8_t reloj1[8]     = {0x1f, 0x11, 0xa, 0x4, 0xa, 0x1f, 0x1f, 0x0};   // Icono reloj de arena
 uint8_t reloj2[8]     = {0x0, 0x0, 0xe, 0x15, 0x15, 0x13, 0xe, 0x0};      // Icono reloj de agujas
 uint8_t calendario[8]  = {0x0, 0x15, 0x1f, 0x15, 0x1b, 0x15, 0x1f, 0x0};  // Icono calendario
-uint8_t iconoComida[8] = {0x0, 0x0, 0x0, 0x0, 0x0, 0xa, 0x15, 0x1f};     // Icono plato de comida
-uint8_t iconoCantidad[8] = {0x0, 0x0, 0x1f, 0x4, 0xe, 0x19, 0x15, 0x1f};  // Icono cantidad de comida
+uint8_t iconoComida[8] = {0x0, 0x0, 0x0, 0x0, 0xa, 0x15, 0x1f, 0x0};     // Icono plato de comida
+uint8_t iconoCantidad[8] = {0x0, 0x1f, 0x4, 0xe, 0x19, 0x15, 0x1f, 0x0};  // Icono cantidad de comida
 
-int racion           = 300; // La medida de la racion es equivalente a la cantidad de milisegundos durante los cuales es necesario dejar la tapa de la tolva abierta para durante los cuales es necesario dejar la tapa de la tolva abierta para
+int racion          = 300; // La medida de la racion es equivalente a la cantidad de milisegundos durante los cuales es necesario dejar la tapa de la tolva abierta para durante los cuales es necesario dejar la tapa de la tolva abierta para
 int porciones        = 2;   // cantidad de porciones por servida
 int dispensadosXdia  = 3;   // cantidad de servidas dispensadas por dia
 
@@ -106,7 +109,7 @@ int comidasServidas[5]      = {0, 0, 0, 0, 0};
 int ultimoDiaDispensado     = 0;
 int comidasSaltadas         = 0;
 int comidasManuales         = 0;
-String pantallasAlarmas[5]  = {"Comida 1", "Comida 2", "Comida 3", "Comida 4", "Comida 5"};
+String pantallasAlarmas[5]  = {"   Comida 1   ", "   Comida 2   ", "   Comida 3   ", "   Comida 4   ", "   Comida 5   "};
 boolean imprimirGrafico = true;
 
 AnalogMultiButton teclado(PIN_TECLADO, BOTONES_NUMERO, BOTONES_VALORES);
@@ -122,7 +125,7 @@ String s = "";
 int mesesLargos[7] = {1, 3, 5, 7, 8, 10, 12};
 int mesesCortos[4] = {4, 6, 9, 11};
 int segundo, minuto, hora, dia, dd, mes;
-long anio; 
+int anio; 
 DateTime HoraFecha;
 
 String timeDigit (int d)
@@ -288,9 +291,16 @@ void guardaAlarmas ()
   EepromRTC.writeInt(POSS5, alarmas[4][2]);
 
   EepromRTC.writeInt(POSDISPENSADOS,dispensadosXdia);
-  EepromRTC.writeInt(POSRACION,racion);
-
+  
   Serial.println("Datos Actualizados!");
+}
+
+void guardaRacion ()
+{
+  Serial.print("RACION A GUARDAR: ");
+  Serial.println(racion);
+  EepromRTC.writeLong(POSRACION,racion/COEFIC_RACION);
+  Serial.println("Racion Actualizada!");
 }
 
 void dispensar ()
@@ -354,8 +364,14 @@ void cargarComidasDispensadas ()
   {
     comidasServidas[i] = EepromRTC.read(POS_COMIDAS_DISPENSADAS[i]);
   }
-  ultimoDiaDispensado = EepromRTC.read(POSFECHA);
-  comidasManuales = EepromRTC.read(POSMANUAL);
+
+  ultimoDiaDispensado = EepromRTC.readInt(POSFECHA);
+  comidasManuales     = EepromRTC.readInt(POSMANUAL);
+  dispensadosXdia     = EepromRTC.readInt(POSDISPENSADOS);
+  racion              = EepromRTC.readInt(POSRACION)*COEFIC_RACION;
+  porciones           = EepromRTC.readInt(POSPORCIONES);
+  Serial.print("RACION LEIDA: ");
+  Serial.println(racion);
 }
 
 void imprAlarm (int a[3])
@@ -394,14 +410,10 @@ void cargaDatos ()
   alarmas[4][2] = EepromRTC.read(POSS5);
   imprAlarm(alarmas[4]);
 
-  dispensadosXdia = EepromRTC.read(POSDISPENSADOS);
-  racion          = EepromRTC.read(POSRACION);
-  porciones       = EepromRTC.read(POSPORCIONES);
-
   cargarComidasDispensadas();
 
   Serial.println("Datos Cargados!");
-  delay(DELAYAFTERPROMPT);
+  //delay(DELAYAFTERPROMPT);
 }
 
 void iniciaComidas ()
@@ -739,7 +751,9 @@ void imprimePaginaTiemposComidas () {
   //lcd.clear ();
   lcd.setCursor (0, 0);
   lcd.write(byte(6));
-  lcd.print ("   HORARIOS   ");
+  lcd.write(byte(5));
+  lcd.print ("  HORARIOS  ");
+  lcd.write(byte(6));
   lcd.write(byte(5));
   lcd.setCursor (0, 1);
   lcd.print ("                ");
@@ -923,30 +937,129 @@ void imprimeAlarma (int a, bool edit)
     s = "0" + s;
   }
 
-  lcd.clear();
+  //lcd.clear();
   lcd.setCursor(0,0);
+  lcd.write(byte(6));
   lcd.print(pantallasAlarmas[a]);
+  lcd.write(byte(6));
   lcd.setCursor(0,1);
   if (edit)
   {
-    lcd.print("> "+h+":"+m+":"+s);
+    lcd.print("> "+h+":"+m+":"+s+"     ");
   } else {
-    lcd.print(h+":"+m+":"+s);
+    lcd.print(h+":"+m+":"+s+"     ");
   }
 
 }
 
+void imprimeRacion (boolean editando)
+{
+  //lcd.setCursor(0,0);
+  //lcd.print ("                ");
+  lcd.setCursor(0,0);
+  lcd.print("1/4 Taza Comida ");
+  //lcd.setCursor(0,1);
+  //lcd.print ("                ");
+  lcd.setCursor(0,1);
+  if(editando)
+  {
+    lcd.print(">");
+  } else {
+    lcd.write(byte(6));
+  }
+  lcd.print(racion);
+  lcd.print("ms   ");
+}
+
 void paginaCantidad () {
-  //lcd.clear ();
   lcd.setCursor (0, 0);
+  lcd.write(byte(6));
   lcd.write(byte(7));
-  lcd.print ("   CANTIDAD   ");
+  lcd.print ("   RACION   ");
+  lcd.write(byte(6));
   lcd.write(byte(7));
   lcd.setCursor (0, 1);
   lcd.print ("                ");
   if (editando)
   {
-    pantallaEdicion();
+    bool navegando = true;
+    paginaAnterior = pagina;
+    pagina = 0;
+    paginasAnterior = paginas;
+    paginas = 1;
+
+    while (navegando)
+    {
+      teclado.update();
+      // Evaluar el input de los botones
+      if (teclado.onPress(MENU)) // Al presionar MENU en modo de navegacion
+      {
+        navegando = false;
+        pagina = paginaAnterior;
+        paginas = paginasAnterior;
+        cargarComidasDispensadas ();
+      }
+      if (teclado.onPress(ARRIBA))
+      {
+        subir();
+      }
+      if (teclado.onPress(ABAJO))
+      {
+        bajar();
+      }
+      if (teclado.onPress(OK))
+      {
+        bool editando_elemento_racion = true;
+        imprimeRacion (false);
+        while (editando_elemento_racion)
+        {
+          teclado.update();
+          lcd.setCursor(0,1);
+          if (teclado.onPress(MENU))
+          {
+            editando_elemento_racion = false;
+          }
+          if (teclado.onPress(OK))
+          {
+            editando_elemento_racion = false;
+            guardaRacion ();
+          }
+          if (teclado.onPress(ARRIBA))
+          {
+            //racion++;
+            racion+=10;
+            Serial.println(racion);
+            if(racion > LIMITE_RACION)
+            {
+              racion = 0;
+            }
+          }
+          if (teclado.onPress(ABAJO))
+          {
+            //racion--;
+            racion-=10;
+            Serial.println(racion);
+            if(racion < 0)
+            {
+              racion = LIMITE_RACION;
+            }
+          }
+          imprimeRacion (true);
+          delay(GLOBALDELAY);
+        }
+      }
+      // Imprimir la pagina seleccionada
+      if (navegando)
+      {
+        switch (pagina)
+        {
+          case 0:
+            imprimeRacion (false);
+            break;
+        }
+      }
+      delay(GLOBALDELAY);
+    }
   }
 }
 
@@ -954,7 +1067,9 @@ void paginaPorciones () {
   //lcd.clear ();
   lcd.setCursor (0, 0);
   lcd.write(byte(6));
-  lcd.print ("  PORCIONES   ");
+  lcd.write(byte(6));
+  lcd.print (" PORCIONES  ");
+  lcd.write(byte(6));
   lcd.write(byte(6));
   lcd.setCursor (0, 1);
   lcd.print ("                ");
@@ -1017,6 +1132,8 @@ void setup () {
   miservo.write (0);            // Set servo position to 0 degrees.
 
   rtc.begin();
+///
+  //EepromRTC.writeInt(POSRACION,300);
 
   DateTime now = rtc.now();
   setTime (now.hour (), now.minute (), now.second (), now.month (), now.day (), now.year ());
