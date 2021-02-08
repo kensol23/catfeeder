@@ -1179,6 +1179,7 @@ void paginaPorciones () {
 
 void subir (){
   pagina++;
+  Serial.println(pagina);
   if(pagina >= paginas)
   {
     pagina = 0;
@@ -1187,6 +1188,7 @@ void subir (){
 
 void bajar (){
   pagina--;
+  Serial.println(pagina);
   if(pagina == -1)
   {
     pagina = paginas;
