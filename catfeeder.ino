@@ -42,6 +42,7 @@
 #define GLOBALDELAY 100
 #define DELAYAFTERPROMPT 2000
 
+const int LIMITE_PORCIONES = 4;
 const int LIMITE_RACION = 2560;
 const int COEFIC_RACION = 10;
 
@@ -301,6 +302,14 @@ void guardaRacion ()
   Serial.println(racion);
   EepromRTC.writeLong(POSRACION,racion/COEFIC_RACION);
   Serial.println("Racion Actualizada!");
+}
+
+void guardaPorciones ()
+{
+  Serial.print("PORCIONES A GUARDAR: ");
+  Serial.println(porciones);
+  EepromRTC.writeLong(POSPORCIONES,porciones);
+  Serial.println("PORCIONES Actualizadas!");
 }
 
 void dispensar ()
@@ -1064,7 +1073,6 @@ void paginaCantidad () {
 }
 
 void paginaPorciones () {
-  //lcd.clear ();
   lcd.setCursor (0, 0);
   lcd.write(byte(6));
   lcd.write(byte(6));
@@ -1075,12 +1083,103 @@ void paginaPorciones () {
   lcd.print ("                ");
   if (editando)
   {
-    pantallaEdicion();
+    bool navegando = true;
+    paginaAnterior = pagina;
+    pagina = 0;
+    paginasAnterior = paginas;
+    paginas = 1;
+
+    while (navegando)
+    {
+      teclado.update();
+      // Evaluar el input de los botones
+      if (teclado.onPress(MENU)) // Al presionar MENU en modo de navegacion
+      {
+        navegando = false;
+        pagina = paginaAnterior;
+        paginas = paginasAnterior;
+        cargarComidasDispensadas ();
+      }
+      if (teclado.onPress(ARRIBA))
+      {
+        subir();
+      }
+      if (teclado.onPress(ABAJO))
+      {
+        bajar();
+      }
+      if (teclado.onPress(OK))
+      {
+        bool editando_elemento_porcion = true;
+        imprimePorciones (false);
+        while (editando_elemento_porcion)
+        {
+          teclado.update();
+          lcd.setCursor(0,1);
+          if (teclado.onPress(MENU))
+          {
+            editando_elemento_porcion = false;
+          }
+          if (teclado.onPress(OK))
+          {
+            editando_elemento_porcion = false;
+            guardaPorciones ();
+          }
+          if (teclado.onPress(ARRIBA))
+          {
+            porciones++;
+            Serial.println(porciones);
+            if(porciones > LIMITE_PORCIONES)
+            {
+              porciones = 1;
+            }
+          }
+          if (teclado.onPress(ABAJO))
+          {
+            porciones--;
+            Serial.println(porciones);
+            if(porciones < 1)
+            {
+              porciones = LIMITE_PORCIONES;
+            }
+          }
+          imprimePorciones (true);
+          delay(GLOBALDELAY);
+        }
+      }
+      // Imprimir la pagina seleccionada
+      if (navegando)
+      {
+        switch (pagina)
+        {
+          case 0:
+            imprimePorciones (false);
+            break;
+        }
+      }
+      delay(GLOBALDELAY);
+    }
   }
+}
+
+ void imprimePorciones (boolean editando)
+{
+  lcd.setCursor(0,0);
+  lcd.print("Porciones para: ");
+  lcd.setCursor(0,1);
+  if(editando)
+  {
+    lcd.print(">");
+  } else {
+    lcd.write(byte(6));
+  }
+  lcd.print(porciones);
+  lcd.print(" gatos   ");
 }
 
 void subir (){
   pagina++;
+  Serial.println(pagina);
   if(pagina >= paginas)
   {
     pagina = 0;
@@ -1089,6 +1188,7 @@ void subir (){
 
 void bajar (){
   pagina--;
+  Serial.println(pagina);
   if(pagina == -1)
   {
     pagina = paginas;
