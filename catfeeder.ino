@@ -1,17 +1,21 @@
 // @author Kener Solorzano Farrier
 
 #include <Servo.h>
-#include <LiquidCrystal_I2C.h>
+//#include <LiquidCrystal_I2C.h>
 #include <Wire.h>
 #include <AnalogMultiButton.h>
 #include <TimeLib.h>
 #include <RTClib.h>
 #include <AT24CX.h>
+#include <ESP8266WiFi.h>
+#include <BlynkSimpleEsp8266_SSL.h>
+#include <WidgetRTC.h>
 
-#define PIN_SERVO 9
-#define PIN_TECLADO A0
-#define PIN_BUZZER A2
-#define PIN_AUX A3
+#define BLYNK_PRINT Serial
+#define PIN_SERVO 14
+#define PIN_TECLADO 0
+#define PIN_BUZZER 12
+#define PIN_AUX 13
 
 #define POSH1 0
 #define POSM1 1
@@ -29,7 +33,7 @@
 #define POSM5 13
 #define POSS5 14
 #define POSDISPENSADOS 15
-#define POSRACION 26
+#define POSRACION 26    
 #define POSPORCIONES 17
 #define POSDISPENSADO1 18
 #define POSDISPENSADO2 19
@@ -42,6 +46,10 @@
 #define GLOBALDELAY 100
 #define DELAYAFTERPROMPT 2000
 
+char auth[] = "sUEz50vuljX2rri4-i1PV3jO3mwePZh_";
+char ssid[] = "gatuchis";
+char pass[] = "gataPuta2020";
+
 const int LIMITE_PORCIONES = 4;
 const int LIMITE_RACION = 2560;
 const int COEFIC_RACION = 10;
@@ -50,7 +58,7 @@ const int BOTONES_NUMERO = 4; // cantidad de botones en el teclado
 const int BOTONES_VALORES[BOTONES_NUMERO] = {0, 343, 526, 638}; // voltajes correspondietes a cada uno de los botones en su respectivo orden
 
 // Orden de los botones de acuerdo a los valores listados en el arreglo BOTONES_VALORES
-const int OK      = 0;
+const int BTNOK      = 0;
 const int MENU    = 1;
 const int ARRIBA  = 2;
 const int ABAJO   = 3;
@@ -114,10 +122,15 @@ String pantallasAlarmas[5]  = {"   Comida 1   ", "   Comida 2   ", "   Comida 3 
 boolean imprimirGrafico = true;
 
 AnalogMultiButton teclado(PIN_TECLADO, BOTONES_NUMERO, BOTONES_VALORES);
-LiquidCrystal_I2C lcd (0x27,16,2);  // Configura la direccion del lcd a 0x27 con una pantalla de 16x2
+//LiquidCrystal_I2C lcd (0x27,16,2);  // Configura la direccion del lcd a 0x27 con una pantalla de 16x2
 RTC_DS1307        rtc;
 AT24C32           EepromRTC;
 Servo             miservo;
+
+// Attach virtual serial terminal to Virtual Pin V1
+WidgetTerminal terminal(V1);
+BlynkTimer timer;
+WidgetRTC rtc2;
 
 String h = "";
 String m = "";
@@ -128,6 +141,43 @@ int mesesCortos[4] = {4, 6, 9, 11};
 int segundo, minuto, hora, dia, dd, mes;
 int anio; 
 DateTime HoraFecha;
+
+BLYNK_WRITE(V0) {
+    TimeInputParam t(param);
+    if (t.hasStartTime())
+    {
+    Serial.println(String("Start: ") +
+       t.getStartHour() + ":" +
+       t.getStartMinute() + ":" +
+       t.getStartSecond());
+    }
+}
+
+BLYNK_CONNECTED() {
+  // Synchronize time on connection
+  rtc2.begin();
+}
+
+// Digital clock display of the time
+void clockDisplay()
+{
+  // You can call hour(), minute(), ... at any time
+  // Please see Time library examples for details
+
+  String currentTime = String(hour()) + ":" + minute() + ":" + second();
+  String currentDate = String(day()) + " " + month() + " " + year();
+  Serial.print("Current time: ");
+  Serial.print(currentTime);
+  Serial.print(" ");
+  Serial.print(currentDate);
+  Serial.println();
+
+  // Send time to the App
+  Blynk.virtualWrite(V0, currentTime);
+  // Send date to the App
+  Blynk.virtualWrite(V2, currentDate);
+}
+
 
 String timeDigit (int d)
 {
@@ -179,8 +229,8 @@ bool mescorto ()
 
 void imprError (String e)
 {
-    lcd.setCursor(0,0);
-    lcd.print(e);
+    //lcd.setCursor(0,0);
+    //lcd.print(e);
     Serial.print(e);
     while (1);
 }
@@ -198,27 +248,40 @@ void establecerHora ()
   }
 }
 
+void cambiaHora (int h, int m, int s)
+{
+  rtc.begin(); //Inicializar el RTC
+  Serial.println("Estableciendo Hora y fecha...");
+  rtc.adjust(DateTime(tiempo[0],tiempo[1],tiempo[2],tiempo[3],tiempo[4],tiempo[5]));
+  if (!rtc.isrunning())
+  {
+    Serial.println ("Reloj no esta en hora!");
+  } else {
+    Serial.println ("Actualizado!");
+  }
+}
+
 void imprimeFecha ()
 {
-  lcd.setCursor(0,0);
-  lcd.print(DIAS[dia]);
-  lcd.print("-");
-  lcd.print(timeDigit(dd));
-  lcd.print("  ");
-  lcd.print(timeDigit(hora));
-  lcd.print(":");
-  lcd.print(timeDigit(minuto));
-  lcd.print(":");
-  lcd.print(timeDigit(segundo));
+  //lcd.setCursor(0,0);
+  //lcd.print(DIAS[dia]);
+  //lcd.print("-");
+  //lcd.print(timeDigit(dd));
+  //lcd.print("  ");
+  //lcd.print(timeDigit(hora));
+  //lcd.print(":");
+  //lcd.print(timeDigit(minuto));
+  //lcd.print(":");
+  //lcd.print(timeDigit(segundo));
 }
 
 void imprimeGraficoComidasAlt ()
 {
-  lcd.setCursor(0,1);
-  lcd.print("                ");
+  //lcd.setCursor(0,1);
+  //lcd.print("                ");
   for(int x=0; x<16; x++)
   {
-    lcd.setCursor(x,1);
+    //lcd.setCursor(x,1);
     for(int i=0; i<5; i++)
     {
       if(alarmas[i][0] != 0 || alarmas[i][1] != 0)
@@ -226,7 +289,7 @@ void imprimeGraficoComidasAlt ()
         int pos = (int)((alarmas[i][0] * 16) / 24);
         if(x == pos)
         {
-          lcd.write(byte(comidasServidas[i]));
+          //lcd.write(byte(comidasServidas[i]));
         } 
       } 
     }
@@ -237,36 +300,36 @@ void imprimeGraficoComidas ()
 {
   calculaComidasSaltadas();
 
-  lcd.setCursor(0,1);
-  lcd.print("                ");
-  lcd.setCursor(0,1);
-  lcd.print("[");
+  //lcd.setCursor(0,1);
+  //lcd.print("                ");
+  //lcd.setCursor(0,1);
+  //lcd.print("[");
   for(int i=0; i<5; i++)
   {
-    lcd.setCursor(i+1,1);
+    //lcd.setCursor(i+1,1);
     if(alarmas[i][0] != 0 || alarmas[i][1] != 0)
     {
       if(comidasServidas[i] != 0)
       {
-        lcd.write(byte(1));
+        //lcd.write(byte(1));
       } else {
         if((alarmas[i][0] == hora && alarmas[i][1] > minuto) || alarmas[i][0] > hora)
         {
-          lcd.write(byte(0));
+          //lcd.write(byte(0));
         } else {
-          lcd.write(byte(2));
+          //lcd.write(byte(2));
         }
       }
     } else {
-      lcd.print("_");
+      //lcd.print("_");
     }
   }
-  lcd.print("]");
+  //lcd.print("]");
 
-  lcd.setCursor(13,1);
-  lcd.write(byte(3));
-  lcd.print(" ");
-  lcd.print(comidasManuales);
+  //lcd.setCursor(13,1);
+  //lcd.write(byte(3));
+  //lcd.print(" ");
+  //lcd.print(comidasManuales);
 }
 
 void guardaAlarmas ()
@@ -460,7 +523,7 @@ void muestraPagina (){
 }
 
 void imprimePaginaPrincipal () {
-  //lcd.clear();
+  ////lcd.clear();
   imprimeFecha();
   if(imprimirGrafico)
   {
@@ -471,13 +534,13 @@ void imprimePaginaPrincipal () {
 
 void imprimePaginaReloj ()
 {
-  //lcd.clear ();
-  lcd.setCursor (0, 0);
-  lcd.write(byte(5));
-  lcd.print (" FECHA Y HORA ");
-  lcd.write(byte(4));
-  lcd.setCursor (0, 1);
-  lcd.print ("                ");
+  ////lcd.clear ();
+  //lcd.setCursor (0, 0);
+  //lcd.write(byte(5));
+  //lcd.print (" FECHA Y HORA ");
+  //lcd.write(byte(4));
+  //lcd.setCursor (0, 1);
+  //lcd.print ("                ");
 
   if (editando)
   {
@@ -514,11 +577,11 @@ void imprimePaginaReloj ()
       {
         bajar();
       }
-      if (teclado.onPress(OK))
+      if (teclado.onPress(BTNOK))
       {
         bool editando_reloj = true;
-        lcd.setCursor(6,1);
-        lcd.print("*");
+        //lcd.setCursor(6,1);
+        //lcd.print("*");
 
         while (editando_reloj){
           teclado.update();
@@ -596,10 +659,10 @@ void imprimePaginaReloj ()
               default:
               break;
             }
-            lcd.setCursor(7,1);
-            lcd.print("    ");
-            lcd.setCursor(7,1);
-            lcd.print(tiempo[pagina]);
+            //lcd.setCursor(7,1);
+            //lcd.print("    ");
+            //lcd.setCursor(7,1);
+            //lcd.print(tiempo[pagina]);
           }
           if (teclado.onPress(ABAJO))
           {
@@ -678,10 +741,10 @@ void imprimePaginaReloj ()
               default:
               break;
             }
-            lcd.setCursor(7,1);
-            lcd.print("    ");
-            lcd.setCursor(7,1);
-            lcd.print(tiempo[pagina]);
+            //lcd.setCursor(7,1);
+            //lcd.print("    ");
+            //lcd.setCursor(7,1);
+            //lcd.print(tiempo[pagina]);
           }
           if (teclado.onPress(MENU))
           {
@@ -697,57 +760,57 @@ void imprimePaginaReloj ()
         switch (pagina)
         {
           case RELOJ_A:
-            lcd.setCursor(2,1);
-            lcd.print("Ano: ");
-            lcd.setCursor(7,1);
-            lcd.print("    ");
-            lcd.setCursor(7,1);
-            lcd.print(tiempo[pagina]);
+            //lcd.setCursor(2,1);
+            //lcd.print("Ano: ");
+            //lcd.setCursor(7,1);
+            //lcd.print("    ");
+            //lcd.setCursor(7,1);
+            //lcd.print(tiempo[pagina]);
           break;
 
           case RELOJ_M:
-            lcd.setCursor(2,1);
-            lcd.print("Mes: ");
-            lcd.setCursor(7,1);
-            lcd.print("    ");
-            lcd.setCursor(7,1);
-            lcd.print(tiempo[pagina]);
+            //lcd.setCursor(2,1);
+            //lcd.print("Mes: ");
+            //lcd.setCursor(7,1);
+            //lcd.print("    ");
+            //lcd.setCursor(7,1);
+            //lcd.print(tiempo[pagina]);
           break;
 
           case RELOJ_D:
-            lcd.setCursor(2,1);
-            lcd.print("Dia: ");
-            lcd.setCursor(7,1);
-            lcd.print("    ");
-            lcd.setCursor(7,1);
-            lcd.print(tiempo[pagina]);
+            //lcd.setCursor(2,1);
+            //lcd.print("Dia: ");
+            //lcd.setCursor(7,1);
+            //lcd.print("    ");
+            //lcd.setCursor(7,1);
+            //lcd.print(tiempo[pagina]);
           break;
 
           case RELOJ_h:
-            lcd.setCursor(2,1);
-            lcd.print("Hor: ");
-            lcd.setCursor(7,1);
-            lcd.print("    ");
-            lcd.setCursor(7,1);
-            lcd.print(timeDigit(tiempo[pagina]));
+            //lcd.setCursor(2,1);
+            //lcd.print("Hor: ");
+            //lcd.setCursor(7,1);
+            //lcd.print("    ");
+            //lcd.setCursor(7,1);
+            //lcd.print(timeDigit(tiempo[pagina]));
           break;
 
           case RELOJ_m:
-            lcd.setCursor(2,1);
-            lcd.print("Min: ");
-            lcd.setCursor(7,1);
-            lcd.print("   ");
-            lcd.setCursor(7,1);
-            lcd.print(timeDigit(tiempo[pagina]));
+            //lcd.setCursor(2,1);
+            //lcd.print("Min: ");
+            //lcd.setCursor(7,1);
+            //lcd.print("   ");
+            //lcd.setCursor(7,1);
+            //lcd.print(timeDigit(tiempo[pagina]));
           break;
 
           case RELOJ_s:
-            lcd.setCursor(2,1);
-            lcd.print("Seg: ");
-            lcd.setCursor(7,1);
-            lcd.print("    ");
-            lcd.setCursor(7,1);
-            lcd.print(timeDigit(tiempo[pagina]));
+            //lcd.setCursor(2,1);
+            //lcd.print("Seg: ");
+            //lcd.setCursor(7,1);
+            //lcd.print("    ");
+            //lcd.setCursor(7,1);
+            //lcd.print(timeDigit(tiempo[pagina]));
           break;
         }
       }
@@ -757,15 +820,15 @@ void imprimePaginaReloj ()
 }
 
 void imprimePaginaTiemposComidas () {
-  //lcd.clear ();
-  lcd.setCursor (0, 0);
-  lcd.write(byte(6));
-  lcd.write(byte(5));
-  lcd.print ("  HORARIOS  ");
-  lcd.write(byte(6));
-  lcd.write(byte(5));
-  lcd.setCursor (0, 1);
-  lcd.print ("                ");
+  ////lcd.clear ();
+  //lcd.setCursor (0, 0);
+  //lcd.write(byte(6));
+  //lcd.write(byte(5));
+  //lcd.print ("  HORARIOS  ");
+  //lcd.write(byte(6));
+  //lcd.write(byte(5));
+  //lcd.setCursor (0, 1);
+  //lcd.print ("                ");
   if (editando)
   {
     bool navegando = true;
@@ -793,7 +856,7 @@ void imprimePaginaTiemposComidas () {
       {
         bajar();
       }
-      if (teclado.onPress(OK))
+      if (teclado.onPress(BTNOK))
       {
         bool editando_alarma = true;
         const int ELEMENTOS = 3;
@@ -824,7 +887,7 @@ void imprimePaginaTiemposComidas () {
               elemento = ELEMENTOS;
             }
           }
-          if (teclado.onPress(OK))
+          if (teclado.onPress(BTNOK))
           {
             bool editando_elemento_alarma = true;
             imprimeAlarma(pagina,true);
@@ -835,7 +898,7 @@ void imprimePaginaTiemposComidas () {
               {
                 editando_elemento_alarma = false;
               }
-              if (teclado.onPress(OK))
+              if (teclado.onPress(BTNOK))
               {
                 editando_elemento_alarma = false;
               }
@@ -844,7 +907,7 @@ void imprimePaginaTiemposComidas () {
                 alarmas[pagina][elemento]++;
                 switch (elemento)
                 {
-                  case HORA:
+                  case HORA:  
                     if (alarmas[pagina][elemento] > 23)
                     {
                       alarmas[pagina][elemento] = 0;
@@ -883,18 +946,18 @@ void imprimePaginaTiemposComidas () {
             }
           }
 
-          lcd.setCursor(0,1);
+          //lcd.setCursor(0,1);
           if (elemento == HORA)
           {
-            lcd.print("> [OK]:"+m+":"+s);
+            //lcd.print("> [BTNOK]:"+m+":"+s);
           }
           if (elemento == MINUTO)
           {
-            lcd.print("> "+h+":[OK]:"+s);
+            //lcd.print("> "+h+":[BTNOK]:"+s);
           }
           if (elemento == SEGUNDO)
           {
-            lcd.print("> "+h+":"+m+":[OK]");
+            //lcd.print("> "+h+":"+m+":[BTNOK]");
           }
           delay(GLOBALDELAY);
         }
@@ -946,49 +1009,49 @@ void imprimeAlarma (int a, bool edit)
     s = "0" + s;
   }
 
-  //lcd.clear();
-  lcd.setCursor(0,0);
-  lcd.write(byte(6));
-  lcd.print(pantallasAlarmas[a]);
-  lcd.write(byte(6));
-  lcd.setCursor(0,1);
+  ////lcd.clear();
+  //lcd.setCursor(0,0);
+  //lcd.write(byte(6));
+  //lcd.print(pantallasAlarmas[a]);
+  //lcd.write(byte(6));
+  //lcd.setCursor(0,1);
   if (edit)
   {
-    lcd.print("> "+h+":"+m+":"+s+"     ");
+    //lcd.print("> "+h+":"+m+":"+s+"     ");
   } else {
-    lcd.print(h+":"+m+":"+s+"     ");
+    //lcd.print(h+":"+m+":"+s+"     ");
   }
 
 }
 
 void imprimeRacion (boolean editando)
 {
+  ////lcd.setCursor(0,0);
+  ////lcd.print ("                ");
   //lcd.setCursor(0,0);
-  //lcd.print ("                ");
-  lcd.setCursor(0,0);
-  lcd.print("1/4 Taza Comida ");
+  //lcd.print("1/4 Taza Comida ");
+  ////lcd.setCursor(0,1);
+  ////lcd.print ("                ");
   //lcd.setCursor(0,1);
-  //lcd.print ("                ");
-  lcd.setCursor(0,1);
   if(editando)
   {
-    lcd.print(">");
+    //lcd.print(">");
   } else {
-    lcd.write(byte(6));
+    //lcd.write(byte(6));
   }
-  lcd.print(racion);
-  lcd.print("ms   ");
+  //lcd.print(racion);
+  //lcd.print("ms   ");
 }
 
 void paginaCantidad () {
-  lcd.setCursor (0, 0);
-  lcd.write(byte(6));
-  lcd.write(byte(7));
-  lcd.print ("   RACION   ");
-  lcd.write(byte(6));
-  lcd.write(byte(7));
-  lcd.setCursor (0, 1);
-  lcd.print ("                ");
+  //lcd.setCursor (0, 0);
+  //lcd.write(byte(6));
+  //lcd.write(byte(7));
+  //lcd.print ("   RACION   ");
+  //lcd.write(byte(6));
+  //lcd.write(byte(7));
+  //lcd.setCursor (0, 1);
+  //lcd.print ("                ");
   if (editando)
   {
     bool navegando = true;
@@ -1016,19 +1079,19 @@ void paginaCantidad () {
       {
         bajar();
       }
-      if (teclado.onPress(OK))
+      if (teclado.onPress(BTNOK))
       {
         bool editando_elemento_racion = true;
         imprimeRacion (false);
         while (editando_elemento_racion)
         {
           teclado.update();
-          lcd.setCursor(0,1);
+          //lcd.setCursor(0,1);
           if (teclado.onPress(MENU))
           {
             editando_elemento_racion = false;
           }
-          if (teclado.onPress(OK))
+          if (teclado.onPress(BTNOK))
           {
             editando_elemento_racion = false;
             guardaRacion ();
@@ -1073,14 +1136,14 @@ void paginaCantidad () {
 }
 
 void paginaPorciones () {
-  lcd.setCursor (0, 0);
-  lcd.write(byte(6));
-  lcd.write(byte(6));
-  lcd.print (" PORCIONES  ");
-  lcd.write(byte(6));
-  lcd.write(byte(6));
-  lcd.setCursor (0, 1);
-  lcd.print ("                ");
+  //lcd.setCursor (0, 0);
+  //lcd.write(byte(6));
+  //lcd.write(byte(6));
+  //lcd.print (" PORCIONES  ");
+  //lcd.write(byte(6));
+  //lcd.write(byte(6));
+  //lcd.setCursor (0, 1);
+  //lcd.print ("                ");
   if (editando)
   {
     bool navegando = true;
@@ -1108,19 +1171,19 @@ void paginaPorciones () {
       {
         bajar();
       }
-      if (teclado.onPress(OK))
+      if (teclado.onPress(BTNOK))
       {
         bool editando_elemento_porcion = true;
         imprimePorciones (false);
         while (editando_elemento_porcion)
         {
           teclado.update();
-          lcd.setCursor(0,1);
+          //lcd.setCursor(0,1);
           if (teclado.onPress(MENU))
           {
             editando_elemento_porcion = false;
           }
-          if (teclado.onPress(OK))
+          if (teclado.onPress(BTNOK))
           {
             editando_elemento_porcion = false;
             guardaPorciones ();
@@ -1164,17 +1227,17 @@ void paginaPorciones () {
 
  void imprimePorciones (boolean editando)
 {
-  lcd.setCursor(0,0);
-  lcd.print("Porciones para: ");
-  lcd.setCursor(0,1);
+  //lcd.setCursor(0,0);
+  //lcd.print("Porciones para: ");
+  //lcd.setCursor(0,1);
   if(editando)
   {
-    lcd.print(">");
+    //lcd.print(">");
   } else {
-    lcd.write(byte(6));
+    //lcd.write(byte(6));
   }
-  lcd.print(porciones);
-  lcd.print(" gatos   ");
+  //lcd.print(porciones);
+  //lcd.print(" gatos   ");
 }
 
 void subir (){
@@ -1197,8 +1260,8 @@ void bajar (){
 
 void pantallaEdicion ()
 {
-  lcd.setCursor(0,1);
-  lcd.print("> ");
+  //lcd.setCursor(0,1);
+  //lcd.print("> ");
 }
 
 void calculaComidasSaltadas () {
@@ -1213,18 +1276,24 @@ void calculaComidasSaltadas () {
 //
 void setup () {
   Serial.begin(9600);
+  Blynk.begin(auth, ssid, pass);
+  setSyncInterval(10 * 60); // Sync interval in seconds (10 minutes)
+  timer.setInterval(10000L, clockDisplay);
+  
   Wire.begin();
-  lcd.init();
-  lcd.backlight();
+  //lcd.init();
+  //lcd.backlight();
+  
+  
 
-  lcd.createChar(0,pendiente);
-  lcd.createChar(1,dispensada);
-  lcd.createChar(2,saltada);
-  lcd.createChar(3,manual);
-  lcd.createChar(4,reloj2);
-  lcd.createChar(5,calendario);
-  lcd.createChar(6,iconoComida);
-  lcd.createChar(7,iconoCantidad);
+  //lcd.createChar(0,pendiente);
+  //lcd.createChar(1,dispensada);
+  //lcd.createChar(2,saltada);
+  //lcd.createChar(3,manual);
+  //lcd.createChar(4,reloj2);
+  //lcd.createChar(5,calendario);
+  //lcd.createChar(6,iconoComida);
+  //lcd.createChar(7,iconoCantidad);
 
   miservo.attach (PIN_SERVO);   // Initialize Servo
   pinMode (PIN_BUZZER, OUTPUT); // Initialize buzzer
@@ -1236,7 +1305,7 @@ void setup () {
   //EepromRTC.writeInt(POSRACION,300);
 
   DateTime now = rtc.now();
-  setTime (now.hour (), now.minute (), now.second (), now.month (), now.day (), now.year ());
+  //setTime (now.hour (), now.minute (), now.second (), now.month (), now.day (), now.year ());
 
   cargarComidasDispensadas();
   
@@ -1252,6 +1321,9 @@ void setup () {
 }
 
 void loop () {
+  Blynk.run();
+  timer.run();
+  
   teclado.update();
   HoraFecha = rtc.now();
 
@@ -1295,7 +1367,7 @@ void loop () {
     }
     bajar();
   }
-  if (teclado.onPress(OK))
+  if (teclado.onPress(BTNOK))
   {
     if (pagina != 0){
       editando = true;
