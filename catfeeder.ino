@@ -85,12 +85,20 @@ const int ALARMA_3 = 2;
 const int ALARMA_4 = 3;
 const int ALARMA_5 = 4;
 
+// Indices COMIDAS
+const int COMIDA_1 = 0;
+const int COMIDA_2 = 1;
+const int COMIDA_3 = 2;
+const int COMIDA_4 = 3;
+const int COMIDA_5 = 4;
+
 const int HORA = 0;
 const int MINUTO = 1;
 const int SEGUNDO = 2;
 
 const char DIAS[7][12] = { "DOM", "LUN", "MAR", "MIE", "JUE", "VIE", "SAB" }; // Dias de la semana desplejados por el reloj de la pagina principal
 const int POS_COMIDAS_DISPENSADAS[5] = {POSDISPENSADO1, POSDISPENSADO2, POSDISPENSADO3, POSDISPENSADO4, POSDISPENSADO5};
+const int POSICIONES_ALARMAS[5][3] = {{POSH1,POSM1,POSS1},{POSH2,POSM2,POSS2},{POSH3,POSM3,POSS3},{POSH4,POSM4,POSS4},{POSH5,POSM5,POSS5}};
 
 uint8_t pendiente[8]  = {0xe, 0x15, 0x15, 0x13, 0xe, 0x0, 0x11, 0x1f};  // Icono comida pendiente
 uint8_t dispensada[8] = {0x1, 0xa, 0x4, 0x0, 0x4, 0xa, 0x15, 0x1f};     // Icono comdia dispensada
@@ -142,20 +150,30 @@ int segundo, minuto, hora, dia, dd, mes;
 int anio; 
 DateTime HoraFecha;
 
+int alarma_siendo_editada = 0;
+
 BLYNK_WRITE(V0) {
     TimeInputParam t(param);
     if (t.hasStartTime())
     {
-    Serial.println(String("Start: ") +
-       t.getStartHour() + ":" +
-       t.getStartMinute() + ":" +
-       t.getStartSecond());
+      Serial.println(String("Alarma " + param.asString() + ": ") +
+        t.getStartHour() + ":" +
+        t.getStartMinute() + ":" +
+        t.getStartSecond());
+      
+      cambiaAlarma(alarma_siendo_editada,t.getStartHour(),t.getStartMinute(),t.getStartSecond());
     }
+}
+
+BLYNK_WRITE(V1) {
+  alarma_siendo_editada = param.asInt();
+  Blynk.setProperty(V0, "label", "Alarma "+param.asString());
 }
 
 BLYNK_CONNECTED() {
   // Synchronize time on connection
   rtc2.begin();
+  Blynk.setProperty(V1, "value", alarma_siendo_editada);
 }
 
 // Digital clock display of the time
@@ -177,7 +195,6 @@ void clockDisplay()
   // Send date to the App
   Blynk.virtualWrite(V2, currentDate);
 }
-
 
 String timeDigit (int d)
 {
@@ -332,6 +349,21 @@ void imprimeGraficoComidas ()
   //lcd.print(comidasManuales);
 }
 
+// Guarda la alarma especificada en i
+void cambiaAlarma (int i, int h, int m, int s)
+{
+  alarmas[i][0] = h;
+  alarmas[i][1] = m;
+  alarmas[i][2] = s;
+
+  EepromRTC.writeInt(POSICIONES_ALARMAS[i][0], alarmas[i][0]);
+  EepromRTC.writeInt(POSICIONES_ALARMAS[i][1], alarmas[i][1]);
+  EepromRTC.writeInt(POSICIONES_ALARMAS[i][2], alarmas[i][2]);
+  
+  Serial.println("Alarma " + String(a) + " actualizada!");
+  imprAlarm(alarmas[i]);
+}
+
 void guardaAlarmas ()
 {
   EepromRTC.writeInt(POSH1, alarmas[0][0]);
@@ -397,7 +429,7 @@ void dispensar ()
     {
       comidasServidas[i] = 1;
       EepromRTC.writeInt(POS_COMIDAS_DISPENSADAS[i],1);
-      EepromRTC.writeInt(POSFECHA, HoraFecha.day());
+      EepromRTC.writeInt(POSFECHA, dia);
     }
   }
   if(pagina == 0){
@@ -426,7 +458,7 @@ void restablecerComidasDispensadas ()
     EepromRTC.writeInt(POS_COMIDAS_DISPENSADAS[i], 0);
   }
   comidasManuales = 0;
-  EepromRTC.writeInt(POSFECHA, HoraFecha.day());
+  EepromRTC.writeInt(POSFECHA, dia);
   EepromRTC.writeInt(POSMANUAL, comidasManuales);
 }
 
@@ -1276,6 +1308,7 @@ void calculaComidasSaltadas () {
 //
 void setup () {
   Serial.begin(9600);
+
   Blynk.begin(auth, ssid, pass);
   setSyncInterval(10 * 60); // Sync interval in seconds (10 minutes)
   timer.setInterval(10000L, clockDisplay);
@@ -1283,8 +1316,6 @@ void setup () {
   Wire.begin();
   //lcd.init();
   //lcd.backlight();
-  
-  
 
   //lcd.createChar(0,pendiente);
   //lcd.createChar(1,dispensada);
@@ -1301,8 +1332,6 @@ void setup () {
   miservo.write (0);            // Set servo position to 0 degrees.
 
   rtc.begin();
-///
-  //EepromRTC.writeInt(POSRACION,300);
 
   DateTime now = rtc.now();
   //setTime (now.hour (), now.minute (), now.second (), now.month (), now.day (), now.year ());
@@ -1327,13 +1356,21 @@ void loop () {
   teclado.update();
   HoraFecha = rtc.now();
 
-  segundo = HoraFecha.second();
+  /*segundo = HoraFecha.second();
   minuto  = HoraFecha.minute();
   hora    = HoraFecha.hour();
   dia     = HoraFecha.dayOfTheWeek();
   dd      = HoraFecha.day();
   mes     = HoraFecha.month();
-  anio    = HoraFecha.year();
+  anio    = HoraFecha.year();*/
+
+  segundo = second();
+  minuto  = minute();
+  hora    = hour();
+  dia     = weekday();
+  dd      = day();
+  mes     = month();
+  anio    = year();
 
   // Validar el cambio de dia para restablecer el registro de comidas dispensadas.
   if(hora==0 && minuto==0 && segundo==0)
