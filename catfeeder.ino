@@ -177,6 +177,8 @@ BLYNK_WRITE (V2) {
   if (cmd == "select") {
     alarma_siendo_editada = param[1].asInt();
     Blynk.setProperty(V0, "label", String("Alarma ") + alarma_siendo_editada);
+    Blynk.virtualWrite(V2, "deselect", alarma_siendo_editada);
+    Blynk.virtualWrite(V2, "pick", alarma_siendo_editada);
   }
 }
 
@@ -195,11 +197,7 @@ void despliegaAlarmas () {
     int s = alarmas[i][2];
     
     Blynk.virtualWrite(V2, "add", i, String("Comida ")+i, timeDigit(h)+":"+timeDigit(m)+":"+timeDigit(s));
-    if (h != 0 || m != 0 || s !=0) {
-      Blynk.virtualWrite(V2, "select", i);
-    } else {
-      Blynk.virtualWrite(V2, "deselect", i);
-    }
+
   }
 }
 
