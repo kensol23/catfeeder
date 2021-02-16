@@ -152,8 +152,9 @@ DateTime HoraFecha;
 
 int alarma_siendo_editada = 0;
 
-BLYNK_WRITE(V0) {
+BLYNK_WRITE (V0) {
     TimeInputParam t(param);
+
     if (t.hasStartTime())
     {
       Serial.println(String("Alarma ") + param.asInt() + ": " +
@@ -165,15 +166,40 @@ BLYNK_WRITE(V0) {
     }
 }
 
-BLYNK_WRITE(V1) {
+BLYNK_WRITE (V1) {
   alarma_siendo_editada = param.asInt();
-  Blynk.setProperty(V0, "label", String("Alarma ")+param.asInt());
+  Blynk.setProperty(V0, "label", String("Alarma ") + alarma_siendo_editada);
+  Blynk.virtualWrite(V2, "pick", alarma_siendo_editada);
 }
 
-BLYNK_CONNECTED() {
+BLYNK_WRITE (V2) {
+  String cmd = param[0].asStr();
+  if (cmd == "select") {
+    alarma_siendo_editada = param[1].asInt();
+    Blynk.setProperty(V0, "label", String("Alarma ") + alarma_siendo_editada);
+  }
+}
+
+BLYNK_CONNECTED () {
   // Synchronize time on connection
   rtc2.begin();
   Blynk.setProperty(V1, "value", alarma_siendo_editada);
+  despliegaAlarmas ();
+}
+
+void despliegaAlarmas () {
+  int h = alarmas[i][0];
+  int m = alarmas[i][1];
+  int s = alarmas[i][2];
+
+  for(int i=0; i<5; i++){
+    Blynk.virtualWrite(V2, "add", i, String("Comida ")+i, timeDigit(h)+":"+timeDigit(m)+":"+timeDigit(s));
+    if (h !== 0 || m !== 0 || s !==0) {
+      Blynk.virtualWrite(V2, "select", i);
+    } else {
+      Blynk.virtualWrite(V2, "deselect", i);
+    }
+  }
 }
 
 // Digital clock display of the time
