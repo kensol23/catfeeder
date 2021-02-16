@@ -156,7 +156,7 @@ BLYNK_WRITE(V0) {
     TimeInputParam t(param);
     if (t.hasStartTime())
     {
-      Serial.println(String("Alarma " + param.asString() + ": ") +
+      Serial.println(String("Alarma ") + param.asInt() + ": " +
         t.getStartHour() + ":" +
         t.getStartMinute() + ":" +
         t.getStartSecond());
@@ -167,7 +167,7 @@ BLYNK_WRITE(V0) {
 
 BLYNK_WRITE(V1) {
   alarma_siendo_editada = param.asInt();
-  Blynk.setProperty(V0, "label", "Alarma "+param.asString());
+  Blynk.setProperty(V0, "label", String("Alarma ")+param.asInt());
 }
 
 BLYNK_CONNECTED() {
@@ -360,7 +360,7 @@ void cambiaAlarma (int i, int h, int m, int s)
   EepromRTC.writeInt(POSICIONES_ALARMAS[i][1], alarmas[i][1]);
   EepromRTC.writeInt(POSICIONES_ALARMAS[i][2], alarmas[i][2]);
   
-  Serial.println("Alarma " + String(a) + " actualizada!");
+  Serial.println(String("Alarma ") + i + " actualizada!");
   imprAlarm(alarmas[i]);
 }
 
