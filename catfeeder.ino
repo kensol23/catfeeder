@@ -1335,12 +1335,16 @@ void calculaComidasSaltadas () {
 //
 void setup () {
   Serial.begin(9600);
+  Wire.begin();
+
+  cargaDatos ();
 
   Blynk.begin(auth, ssid, pass);
   setSyncInterval(10 * 60); // Sync interval in seconds (10 minutes)
   timer.setInterval(10000L, clockDisplay);
-  
-  Wire.begin();
+  rtc.begin();
+  DateTime now = rtc.now();
+
   //lcd.init();
   //lcd.backlight();
 
@@ -1358,9 +1362,7 @@ void setup () {
   pinMode (PIN_AUX, OUTPUT);
   miservo.write (0);            // Set servo position to 0 degrees.
 
-  rtc.begin();
-
-  DateTime now = rtc.now();
+  
   //setTime (now.hour (), now.minute (), now.second (), now.month (), now.day (), now.year ());
 
   cargarComidasDispensadas();
@@ -1372,7 +1374,7 @@ void setup () {
     calculaComidasSaltadas();
   }
 
-  iniciaComidas();
+  //iniciaComidas();
   imprimeGraficoComidas();
 }
 
