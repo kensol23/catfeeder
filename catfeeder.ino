@@ -5,6 +5,7 @@
 #include <Wire.h>
 #include <AnalogMultiButton.h>
 #include <TimeLib.h>
+#include <TimeAlarms.h>
 #include <RTClib.h>
 #include <AT24CX.h>
 #include <ESP8266WiFi.h>
@@ -201,6 +202,8 @@ BLYNK_CONNECTED () {
   // Synchronize time on connection
   rtc2.begin();
   Blynk.setProperty(V1, "value", alarma_siendo_editada+1);
+  Blynk.setProperty(V3, "value", racion);
+  Blynk.setProperty(V4, "value", porciones);
   despliegaAlarmas ();
 }
 
@@ -211,10 +214,14 @@ void despliegaAlarmas () {
     int m = alarmas[i][1];
     int s = alarmas[i][2];
     
-    table.addRow(i, String("Comida ")+i+1, timeDigit(h)+":"+timeDigit(m)+":"+timeDigit(s));
-  
-    //Blynk.virtualWrite(V2, "add", i, String("Comida ")+i+1, timeDigit(h)+":"+timeDigit(m)+":"+timeDigit(s));
+    table.addRow(i, String("Comida ")+(int)(i+1), timeDigit(h)+":"+timeDigit(m)+":"+timeDigit(s));
+    Blynk.virtualWrite(V2, "deselect", i);
+
+    if(h!=0 || m!=0 || s!=0) {
+      Alarm.alarmRepeat(h, m, s, dispensar);
+    }
   }
+  imprimeGraficoComidas ();
 }
 
 // Digital clock display of the time
@@ -370,12 +377,16 @@ void imprimeGraficoComidas ()
       if(comidasServidas[i] != 0)
       {
         //lcd.write(byte(1));
+        Blynk.virtualWrite(V2, "select", i);
       } else {
         if((alarmas[i][0] == hora && alarmas[i][1] > minuto) || alarmas[i][0] > hora)
         {
           //lcd.write(byte(0));
+          Blynk.virtualWrite(V2, "deselect", i);
         } else {
           //lcd.write(byte(2));
+          Blynk.virtualWrite(V2, "deselect", i);
+          table.pickRow(i);
         }
       }
     } else {
@@ -454,11 +465,11 @@ void dispensar ()
   beep();
   beep();
   digitalWrite (PIN_AUX, HIGH);
-
+  Serial.println("DISPENSANDO!!");
   miservo.write(180);
   delay(racion*porciones);
   miservo.write(0);
-
+  Serial.println("DISPENSADO!!");
   digitalWrite (PIN_AUX, LOW);
   beep();
   beep();
@@ -1352,6 +1363,7 @@ void setup () {
   Wire.begin();
 
   cargaDatos ();
+  despliegaAlarmas ();
 
   Blynk.begin(auth, ssid, pass);
   setSyncInterval(10 * 60); // Sync interval in seconds (10 minutes)
@@ -1481,5 +1493,6 @@ void loop () {
 
   muestraPagina();
 
-  delay(GLOBALDELAY);
+  //delay(GLOBALDELAY);
+  Alarm.delay(1000);
 }
