@@ -135,8 +135,7 @@ RTC_DS1307        rtc;
 AT24C32           EepromRTC;
 Servo             miservo;
 
-// Attach virtual serial terminal to Virtual Pin V1
-WidgetTerminal terminal(V1);
+WidgetTable table(V2);
 BlynkTimer timer;
 WidgetRTC rtc2;
 
@@ -153,18 +152,18 @@ DateTime HoraFecha;
 int alarma_siendo_editada = 0;
 
 BLYNK_WRITE (V0) {
-    TimeInputParam t(param);
+  TimeInputParam t(param);
 
-    if (t.hasStartTime())
-    {
-      Serial.println(String("Alarma ") + param.asInt() + ": " +
-        t.getStartHour() + ":" +
-        t.getStartMinute() + ":" +
-        t.getStartSecond());
-      
-      cambiaAlarma(alarma_siendo_editada,t.getStartHour(),t.getStartMinute(),t.getStartSecond());
-      despliegaAlarmas ();
-    }
+  if (t.hasStartTime())
+  {
+    Serial.println(String("Alarma ") + param.asInt() + ": " +
+      t.getStartHour() + ":" +
+      t.getStartMinute() + ":" +
+      t.getStartSecond());
+    
+    cambiaAlarma(alarma_siendo_editada,t.getStartHour(),t.getStartMinute(),t.getStartSecond());
+    despliegaAlarmas ();
+  }
 }
 
 BLYNK_WRITE (V1) {
@@ -173,24 +172,35 @@ BLYNK_WRITE (V1) {
   int m = alarmas[alarma_siendo_editada][1];
   int s = alarmas[alarma_siendo_editada][2];
   Blynk.setProperty(V0, "label", String("Alarma ") + alarma_siendo_editada);
-  Blynk.virtualWrite(V2, "update", i, String("Comida ")+i, timeDigit(h)+":"+timeDigit(m)+":"+timeDigit(s));
-  Blynk.virtualWrite(V2, "pick", alarma_siendo_editada);
+  //Blynk.virtualWrite(V2, "update", i, String("Comida ")+i, timeDigit(h)+":"+timeDigit(m)+":"+timeDigit(s));
+  //Blynk.virtualWrite(V2, "pick", alarma_siendo_editada);
+  table.pickRow(alarma_siendo_editada)
 }
 
-BLYNK_WRITE (V2) {
-  String cmd = param[0].asStr();
-  if (cmd == "select") {
+BLYNK_WRITE (V3) {
+  String val = param[0].asInt();
+  racion = val;
+  guardaRacion ();
+}
+
+BLYNK_WRITE (V4) {
+  String val = param[0].asInt();
+  porciones = val;
+  guardaPorciones ();
+}
+
+BLYNK_WRITE (V5) {
+  String val = param[0].asInt();
+  if (val == 1) {
     alarma_siendo_editada = param[1].asInt();
-    Blynk.setProperty(V0, "label", String("Alarma ") + alarma_siendo_editada);
-    Blynk.virtualWrite(V2, "deselect", alarma_siendo_editada);
-    Blynk.virtualWrite(V2, "pick", alarma_siendo_editada);
+    dispensarManual ();
   }
 }
 
 BLYNK_CONNECTED () {
   // Synchronize time on connection
   rtc2.begin();
-  Blynk.setProperty(V1, "value", alarma_siendo_editada);
+  Blynk.setProperty(V1, "value", alarma_siendo_editada+1);
   despliegaAlarmas ();
 }
 
@@ -201,8 +211,9 @@ void despliegaAlarmas () {
     int m = alarmas[i][1];
     int s = alarmas[i][2];
     
-    Blynk.virtualWrite(V2, "add", i, String("Comida ")+i, timeDigit(h)+":"+timeDigit(m)+":"+timeDigit(s));
-    Blynk.virtualWrite(V2, "deselect", i);
+    table.addRow(i, String("Comida ")+i+1, timeDigit(h)+":"+timeDigit(m)+":"+timeDigit(s));
+  
+    //Blynk.virtualWrite(V2, "add", i, String("Comida ")+i+1, timeDigit(h)+":"+timeDigit(m)+":"+timeDigit(s));
   }
 }
 
